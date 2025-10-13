@@ -160,7 +160,14 @@ def fetch_github_file(repo: str, path: str, branch: str = "master") -> Optional[
         return None
 
 
-def update_manifest_content(content: str, version: str, sha256: Optional[str] = None, signature_sha256: Optional[str] = None) -> str:
+def update_manifest_content(
+    content: str, 
+    version: str, 
+    sha256: Optional[str] = None, 
+    signature_sha256: Optional[str] = None,
+    release_notes: Optional[str] = None,
+    release_notes_url: Optional[str] = None
+) -> str:
     """
     Update version and SHA256 in manifest content.
     
@@ -169,6 +176,7 @@ def update_manifest_content(content: str, version: str, sha256: Optional[str] = 
     2. Replace ALL occurrences of old version with new version
     3. Update SHA256 hashes if provided
     4. Update ReleaseDate to today
+    5. Update ReleaseNotes and ReleaseNotesUrl if provided
     """
     
     # Extract old version from PackageVersion field
@@ -216,6 +224,40 @@ def update_manifest_content(content: str, version: str, sha256: Optional[str] = 
         content
     )
     print(f"  ✅ Updated ReleaseDate to {today}")
+    
+    # Update ReleaseNotes if provided (for GitHub releases)
+    if release_notes:
+        # Escape special characters for YAML block scalar
+        # Use |- for literal block scalar (strips trailing newlines)
+        yaml_notes = release_notes.replace('\r\n', '\n').replace('\r', '\n')
+        
+        # Replace ReleaseNotes field (handles both single line and block scalar)
+        if re.search(r'ReleaseNotes:\s*\|-', content):
+            # Block scalar format - replace everything until next field
+            content = re.sub(
+                r'ReleaseNotes:\s*\|-\n(?:.*\n)*?(?=\w+:)',
+                f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}\n',
+                content,
+                flags=re.MULTILINE
+            )
+            print(f"  ✅ Updated ReleaseNotes (block scalar)")
+        else:
+            # Single line or missing - add as block scalar
+            content = re.sub(
+                r'(ReleaseNotes:).*',
+                f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}',
+                content
+            )
+            print(f"  ✅ Updated ReleaseNotes")
+    
+    # Update ReleaseNotesUrl if provided
+    if release_notes_url:
+        content = re.sub(
+            r'ReleaseNotesUrl:.*',
+            f'ReleaseNotesUrl: {release_notes_url}',
+            content
+        )
+        print(f"  ✅ Updated ReleaseNotesUrl")
     
     return content
 
@@ -272,7 +314,9 @@ def update_manifests(
     manifest_path: str,
     package_id: str,
     version: str,
-    installer_url: str
+    installer_url: str,
+    release_notes: Optional[str] = None,
+    release_notes_url: Optional[str] = None
 ) -> bool:
     """Update manifest files in the cloned repository"""
     try:
@@ -336,8 +380,21 @@ def update_manifests(
                 with open(src_file, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
-                # Update content with both hashes
-                updated_content = update_manifest_content(content, version, sha256, signature_sha256)
+                # Determine if this is locale file (for ReleaseNotes)
+                is_locale_file = '.locale.' in filename
+                
+                # Update content with hashes and optionally release notes
+                if is_locale_file and release_notes:
+                    # Update locale file with release notes
+                    updated_content = update_manifest_content(
+                        content, version, sha256, signature_sha256, 
+                        release_notes, release_notes_url
+                    )
+                else:
+                    # Update other files without release notes
+                    updated_content = update_manifest_content(
+                        content, version, sha256, signature_sha256
+                    )
                 
                 with open(dst_file, 'w', encoding='utf-8') as f:
                     f.write(updated_content)
@@ -463,7 +520,14 @@ def main():
     checkver_config = version_info['checkver_config']
     manifest_path = checkver_config.get('manifestPath', '')
     
+    # Get release notes if available
+    release_notes = version_info.get('releaseNotes')
+    release_notes_url = version_info.get('releaseNotesUrl')
+    
     print(f"Updating {package_id} to version {version}")
+    
+    if release_notes:
+        print(f"📝 Release notes available ({len(release_notes)} chars)")
     
     # Check if PR already exists BEFORE doing any work
     if check_existing_pr(package_id, version):
@@ -494,8 +558,8 @@ def main():
         branch_name = create_pr_branch(repo_dir, package_id, version)
         print(f"Created branch: {branch_name}")
         
-        # Update manifests
-        if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url):
+        # Update manifests with release notes
+        if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url):
             print("Failed to update manifests")
             sys.exit(1)
         

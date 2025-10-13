@@ -122,6 +122,55 @@ def get_installer_url(checkver_config: Dict, version: str) -> str:
     return template.format(version=version, versionShort=version_short)
 
 
+def get_github_release_info(checkver_config: Dict, version: str) -> Optional[Dict]:
+    """
+    Fetch release notes and URL from GitHub API if this is a GitHub-based package.
+    Returns dict with releaseNotes and releaseNotesUrl, or None if not GitHub or error.
+    """
+    try:
+        # Check if this is a GitHub releases package
+        checkver = checkver_config.get('checkver', {})
+        script = checkver.get('script', '')
+        
+        # Look for GitHub API URL in the script
+        github_api_match = re.search(r'github\.com/repos/([^/]+)/([^/]+)/releases', script)
+        if not github_api_match:
+            return None
+        
+        owner = github_api_match.group(1)
+        repo = github_api_match.group(2)
+        
+        # Remove .0 suffix from version for GitHub tag (e.g., 2.4.4.0 -> 2.4.4)
+        tag_version = re.sub(r'\.0$', '', version)
+        tag_name = f"v{tag_version}"
+        
+        # Fetch release info from GitHub API
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag_name}"
+        print(f"Fetching release info from: {api_url}")
+        
+        headers = {'User-Agent': 'winget-pkgs-updater'}
+        response = requests.get(api_url, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            release_data = response.json()
+            release_notes = release_data.get('body', '').strip()
+            release_url = release_data.get('html_url', '')
+            
+            if release_notes:
+                print(f"✅ Fetched release notes ({len(release_notes)} chars)")
+                return {
+                    'releaseNotes': release_notes,
+                    'releaseNotesUrl': release_url
+                }
+        else:
+            print(f"Warning: Could not fetch release info (status {response.status_code})")
+            
+    except Exception as e:
+        print(f"Warning: Error fetching GitHub release info: {e}")
+    
+    return None
+
+
 def verify_installer_exists(url: str) -> bool:
     """Verify that the installer URL is accessible"""
     try:
@@ -158,17 +207,27 @@ def check_version(checkver_path: str) -> Optional[Dict]:
     installer_url = get_installer_url(checkver_config, latest_version)
     print(f"Installer URL: {installer_url}")
     
+    # Get GitHub release info if available
+    release_info = get_github_release_info(checkver_config, latest_version)
+    
     # Verify installer exists
     if not verify_installer_exists(installer_url):
         print("Warning: Installer URL is not accessible")
         # Continue anyway - the URL might become accessible later
     
-    return {
+    result = {
         'packageIdentifier': package_id,
         'version': latest_version,
         'installerUrl': installer_url,
         'checkver_config': checkver_config
     }
+    
+    # Add release info if available
+    if release_info:
+        result['releaseNotes'] = release_info['releaseNotes']
+        result['releaseNotesUrl'] = release_info['releaseNotesUrl']
+    
+    return result
 
 
 def main():
