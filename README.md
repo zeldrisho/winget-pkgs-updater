@@ -2,136 +2,210 @@
 
 Tự động tạo Pull Request lên [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) khi phát hiện phiên bản mới của các ứng dụng.
 
-## 🚀 Bắt đầu nhanh
+## 🚀 Quick Start (3 phút)
 
-**Xem [QUICKSTART.md](QUICKSTART.md)** - Hướng dẫn cài đặt trong 5 phút!
+### ❌ Gặp lỗi token?
+👉 **[QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md)** - Fix trong 3 phút!
 
-## Tính năng
+### ✅ Setup lần đầu?
+1. **Fork repos:**
+   - Fork repo này về account của bạn
+   - Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
 
-- ✅ Tự động kiểm tra phiên bản mới của các ứng dụng
-- ✅ Tạo manifest theo đúng format của microsoft/winget-pkgs
-- ✅ Tự động tạo Pull Request sử dụng tài khoản GitHub của bạn
-- ✅ Hỗ trợ nhiều ứng dụng với cấu hình độc lập
-- ✅ Chạy định kỳ bằng GitHub Actions
+2. **Setup token:**
+   - 📖 [QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md) - 3 phút
+   - 📖 [TOKEN_SETUP.md](TOKEN_SETUP.md) - Chi tiết đầy đủ
 
-## Bắt đầu nhanh
+3. **Run workflow:**
+   - Actions → Update WinGet Packages → Run workflow
 
-👉 **[QUICKSTART.md](QUICKSTART.md)** - Hướng dẫn cài đặt trong 5 phút!
+4. **Đợi PR:**
+   - Check tại: https://github.com/microsoft/winget-pkgs/pulls?q=author:YOUR_USERNAME
 
-### 1. Fork repository này
+---
 
-### 2. Fork microsoft/winget-pkgs về tài khoản của bạn
+## 📚 Tài liệu
 
-### 3. Tạo Personal Access Token với quyền `repo` và `workflow`
+### 🔥 Nhanh
+- **[QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md)** - Fix token error trong 3 phút
+- **[SETUP_CHECKLIST.md](SETUP_CHECKLIST.md)** - Checklist đầy đủ
 
-### 4. Thêm secrets vào repository:
-- `WINGET_TOKEN`: Personal Access Token của bạn
-- `WINGET_FORK_REPO`: Tên fork của bạn (ví dụ: `username/winget-pkgs`)
+### 📖 Chi tiết
+- **[TOKEN_SETUP.md](TOKEN_SETUP.md)** - Hướng dẫn tạo Personal Access Token
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Fix tất cả các lỗi thường gặp
+- **[TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md)** - Workflow run number vs ID
 
-### 5. Kích hoạt GitHub Actions
+### 🐛 Debug
+- **[GITHUB_OUTPUT_FIX.md](GITHUB_OUTPUT_FIX.md)** - Fix multiline JSON output
+- **[BUGFIXES.md](BUGFIXES.md)** - Lịch sử các bugs đã fix
+- **[CHANGELOG.md](CHANGELOG.md)** - Lịch sử thay đổi
 
-Xem hướng dẫn chi tiết trong [SETUP.md](SETUP.md).
+### 📝 Manifest
+- **[manifests/README.md](manifests/README.md)** - Cấu trúc checkver config
+- **[manifests/EXAMPLES.md](manifests/EXAMPLES.md)** - Ví dụ checkver configs
 
-## Tài liệu
+---
 
-- **[QUICKSTART.md](QUICKSTART.md)** - 🚀 Hướng dẫn cài đặt nhanh 5 phút
-- **[SETUP.md](SETUP.md)** - Hướng dẫn cài đặt chi tiết
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Hướng dẫn thêm packages mới
-- **[manifests/README.md](manifests/README.md)** - Cấu trúc manifest
-- **[manifests/EXAMPLES.md](manifests/EXAMPLES.md)** - Ví dụ cấu hình
+## ✨ Tính năng
 
-## Cài đặt
+- ✅ Tự động detect version mới bằng PowerShell scripts
+- ✅ Tự động tính SHA256 hash của installer
+- ✅ Clone manifest từ microsoft/winget-pkgs và update
+- ✅ Tự động tạo PR với format chuẩn
+- ✅ Chạy tự động mỗi 6 giờ
+- ✅ Support nhiều packages với checkver riêng
+- ✅ Full traceability: PR link về workflow run
 
-### 1. Fork repository này
+---
 
-Fork repository về tài khoản GitHub của bạn.
+## 🏗️ Architecture
 
-### 2. Fork microsoft/winget-pkgs
-
-Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) về tài khoản của bạn. Đây là nơi các Pull Request sẽ được tạo trước khi submit lên repo chính.
-
-### 3. Tạo Personal Access Token (PAT)
-
-1. Truy cập [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens)
-2. Tạo token mới với các quyền:
-   - `repo` (Full control of private repositories)
-   - `workflow` (Update GitHub Action workflows)
-3. Copy token và lưu lại
-
-### 4. Cấu hình Secrets
-
-Trong repository của bạn, thêm các secrets sau (Settings > Secrets and variables > Actions):
-
-- `WINGET_TOKEN`: Personal Access Token vừa tạo
-- `WINGET_FORK_REPO`: Tên fork của bạn (ví dụ: `username/winget-pkgs`)
-
-## Cấu hình ứng dụng
-
-### Thêm ứng dụng mới
-
-#### Cách 1: Sử dụng helper script (Khuyến nghị)
-
-```bash
-python scripts/add_package.py
+### Workflow
+```
+1. GitHub Actions runs every 6 hours (or manual)
+2. Scan manifests/*.checkver.yaml files
+3. Run PowerShell scripts to detect versions
+4. Compare with microsoft/winget-pkgs
+5. If new version found:
+   ├─ Clone your fork
+   ├─ Copy latest manifest
+   ├─ Update version & SHA256
+   ├─ Commit & push to fork
+   └─ Create PR to microsoft/winget-pkgs
 ```
 
-#### Cách 2: Tạo thủ công
+### Files Structure
+```
+winget-pkgs-updater/
+├── .github/workflows/
+│   └── update-packages.yml      # Main workflow
+├── manifests/
+│   ├── VNGCorp.Zalo.checkver.yaml  # Checkver config
+│   └── ...more packages...
+├── scripts/
+│   ├── check_version.py         # Version detection
+│   └── update_manifest.py       # Manifest update & PR creation
+└── docs/
+    ├── QUICKSTART_TOKEN.md      # 3-min setup
+    ├── TOKEN_SETUP.md           # Detailed token guide
+    ├── TROUBLESHOOTING.md       # All errors & fixes
+    └── ...more docs...
+```
 
-Tạo file YAML trong thư mục `manifests/` với tên `Publisher.AppName.yaml`:
-
+### Checkver Config Format
 ```yaml
 packageIdentifier: VNGCorp.Zalo
-updateMethod: web
-checkUrl: https://www.zalo.me/download
-installerUrlPattern: https://res-zalo-pc-stc.zadn.vn/win/Zalo-{version}-win64.msi
-architecture: x64
-installerType: msi
-productCode: "{PRODUCTCODE}"
-releaseNotesUrl: https://www.zalo.me
-publisher: VNG Corporation
-packageName: Zalo
-license: Proprietary
-shortDescription: Zalo - Nhắn Gửi Yêu Thương
-description: |
-  Zalo PC - Kết nối với những người thân yêu của bạn.
-tags:
-  - messenger
-  - chat
+manifestPath: manifests/v/VNGCorp/Zalo
+checkver:
+  type: script
+  script: |
+    # PowerShell script to get download URL
+    # Can use Invoke-WebRequest, API calls, etc.
+  regex: "ZaloSetup-([\\d\\.]+)\\.exe"
+installerUrlTemplate: "https://example.com/ZaloSetup-{version}.exe"
 ```
 
-### Các trường cấu hình
+---
 
-- `packageIdentifier`: ID của package theo format `Publisher.AppName`
-- `updateMethod`: Phương thức kiểm tra version (`web`, `api`)
-- `checkUrl`: URL để kiểm tra phiên bản mới
-- `installerUrlPattern`: Pattern URL của installer, `{version}` sẽ được thay thế
-- `architecture`: Kiến trúc (`x64`, `x86`, `arm64`)
-- `installerType`: Loại installer (`msi`, `exe`, `msix`)
-- `productCode`: Product code của MSI installer
-- `publisher`: Tên nhà phát hành
-- `packageName`: Tên package
-- `license`: Loại license
-- `shortDescription`: Mô tả ngắn
-- `description`: Mô tả chi tiết
-- `tags`: Danh sách tags
+## 🔧 Adding New Packages
 
-### Thêm vào workflow
+### 1. Create checkver config
 
-Cập nhật file `.github/workflows/update-packages.yml`, thêm manifest mới vào `matrix.manifest`:
-
+File: `manifests/Your.Package.checkver.yaml`
 ```yaml
-strategy:
-  matrix:
-    manifest:
-      - manifests/VNGCorp.Zalo.yaml
-      - manifests/YourPublisher.YourApp.yaml
+packageIdentifier: Your.Package
+manifestPath: manifests/y/Your/Package
+checkver:
+  type: script
+  script: |
+    # PowerShell to get version
+    Invoke-WebRequest -Uri "https://api.example.com/version"
+  regex: "v([\\d\\.]+)"
+installerUrlTemplate: "https://example.com/installer-{version}.exe"
 ```
 
-## Sử dụng
+### 2. Test locally
+```bash
+python scripts/check_version.py manifests/Your.Package.checkver.yaml
+```
 
-### Tự động
+### 3. Commit and push
+```bash
+git add manifests/Your.Package.checkver.yaml
+git commit -m "feat: Add Your.Package checkver config"
+git push
+```
 
-Workflow sẽ chạy tự động mỗi 6 giờ để kiểm tra phiên bản mới.
+### 4. Workflow will auto-detect on next run!
+
+---
+
+## 🐛 Common Issues
+
+### "Error: GITHUB_TOKEN not set"
+👉 See [QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md)
+
+### "Invalid format" error
+👉 Fixed in latest version, pull updates
+
+### Workflow passes but no PR
+- Check if version already exists in microsoft/winget-pkgs
+- Verify fork exists: `https://github.com/YOUR_USERNAME/winget-pkgs`
+- Check workflow logs for errors
+
+### Need more help?
+📖 [TROUBLESHOOTING.md](TROUBLESHOOTING.md) covers all errors!
+
+---
+
+## 📊 Status & Progress
+
+### Current Status
+✅ **Production Ready!**
+
+### What's Working
+- ✅ PowerShell-based version detection
+- ✅ Multiline JSON output (EOF delimiter)
+- ✅ SHA256 hash calculation
+- ✅ Automatic PR creation
+- ✅ Run number display (#42 format)
+- ✅ Full documentation
+
+### Known Limitations
+- ⚠️ Requires Personal Access Token (github.token has limited permissions)
+- ⚠️ Must fork microsoft/winget-pkgs first
+- ⚠️ PowerShell scripts are package-specific
+
+### Roadmap
+- [ ] Add more package checkver configs
+- [ ] Web UI for monitoring
+- [ ] Email notifications
+- [ ] Batch PR support
+
+---
+
+## 📄 License
+
+MIT License - See [LICENSE](LICENSE)
+
+---
+
+## 🙏 Credits
+
+- [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) - The official WinGet repository
+- Inspired by update automation tools from various package managers
+
+---
+
+## 💬 Support
+
+- 📖 **Documentation:** Check files in this repo
+- 🐛 **Issues:** GitHub Issues tab
+- 💡 **Questions:** GitHub Discussions
+
+---
+
+**Made with ❤️ for automated package management**
 
 ### Thủ công
 
