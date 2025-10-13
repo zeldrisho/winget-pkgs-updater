@@ -115,7 +115,11 @@ def get_latest_version_from_web(check_url: str) -> Optional[str]:
 def get_installer_url(checkver_config: Dict, version: str) -> str:
     """Generate installer URL from template"""
     template = checkver_config.get('installerUrlTemplate', '')
-    return template.format(version=version)
+    
+    # Handle versionShort placeholder (e.g., 2.3.12.0 -> 2.3.12)
+    version_short = re.sub(r'\.0$', '', version)
+    
+    return template.format(version=version, versionShort=version_short)
 
 
 def verify_installer_exists(url: str) -> bool:

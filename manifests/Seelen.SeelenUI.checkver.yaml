@@ -6,15 +6,16 @@ manifestPath: manifests/s/Seelen/SeelenUI
 checkver:
   type: script
   script: |
-    # Get latest stable release from GitHub
-    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/eythaann/Seelen-UI/releases/latest" -UserAgent "winget-pkgs-updater"
+    # Get latest stable release from GitHub API
+    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/eythaann/Seelen-UI/releases/latest"
     if ($response.tag_name) {
-      # Remove 'v' prefix if present
+      # Remove 'v' prefix and add .0 suffix (e.g., v2.3.12 -> 2.3.12.0)
       $version = $response.tag_name -replace '^v', ''
+      $version = $version + '.0'
       Write-Output $version
     }
   regex: "([\\d\\.]+)"
 
-# Template for GitHub releases-based installer URL
-# Will be used to construct download URL and calculate SHA256
-installerUrlTemplate: "https://github.com/eythaann/Seelen-UI/releases/download/v{version}/Seelen.UI_{version}_x64-setup.exe"
+# MSIX installer template - uses shortened version without .0 in download URL
+# Example: version 2.3.12.0 -> download URL has v2.3.12
+installerUrlTemplate: "https://github.com/eythaann/Seelen-UI/releases/download/v{versionShort}/Seelen.SeelenUI_{version}_x64__p6yyn03m1894e.Msix"
