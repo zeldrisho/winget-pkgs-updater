@@ -1,0 +1,95 @@
+name: Test Manifest Checker
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to test (e.g., VNGCorp.Zalo or Seelen.SeelenUI)'
+        required: false
+        default: ''
+  pull_request:
+    paths:
+      - 'manifests/**.yaml'
+      - 'scripts/check_version.py'
+      - 'scripts/update_manifest.py'
+
+jobs:
+  test-checkver:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Setup PowerShell
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https software-properties-common
+          wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
+      
+      - name: Install Python dependencies
+        run: |
+          pip install -r scripts/requirements.txt
+      
+      - name: Find checkver configs
+        id: find-configs
+        run: |
+          if [ -n "${{ github.event.inputs.package }}" ]; then
+            # Test specific package
+            configs=$(find manifests -name "${{ github.event.inputs.package }}.checkver.yaml")
+          else
+            # Test all packages
+            configs=$(find manifests -name "*.checkver.yaml")
+          fi
+          
+          echo "Found configs:"
+          echo "$configs"
+          
+          # Convert to JSON array
+          json_array=$(echo "$configs" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "configs=$json_array" >> $GITHUB_OUTPUT
+      
+      - name: Test checkver configurations
+        run: |
+          echo "=== Testing Checkver Configurations ==="
+          echo ""
+          
+          configs='${{ steps.find-configs.outputs.configs }}'
+          
+          # Parse JSON array
+          echo "$configs" | jq -r '.[]' | while read -r config; do
+            if [ -f "$config" ]; then
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "Testing: $config"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              
+              # Run check_version.py
+              if python3 scripts/check_version.py "$config"; then
+                echo "✅ SUCCESS: $config"
+              else
+                echo "❌ FAILED: $config"
+                exit 1
+              fi
+              
+              echo ""
+            fi
+          done
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ All tests passed!"
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** This workflow only tests version detection." >> $GITHUB_STEP_SUMMARY
+          echo "No PRs are created in test mode." >> $GITHUB_STEP_SUMMARY
