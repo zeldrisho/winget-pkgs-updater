@@ -1,124 +1,245 @@
-# winget-pkgs-updater
+# WinGet Package Updater# winget-pkgs-updater
 
-Tự động tạo Pull Request lên [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) khi phát hiện phiên bản mới của các ứng dụng.
 
-## 🚀 Quick Start (3 phút)
 
-### ❌ Gặp lỗi token?
-👉 **[QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md)** - Fix trong 3 phút!
+Automated tool to check for new package versions and create pull requests to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs).Tự động tạo Pull Request lên [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) khi phát hiện phiên bản mới của các ứng dụng.
 
-### ✅ Setup lần đầu?
-1. **Fork repos:**
+
+
+## Features## 🚀 Quick Start (3 phút)
+
+
+
+- 🔄 **Automatic version detection** using PowerShell scripts or GitHub API### ❌ Gặp lỗi token?
+
+- 📦 **Manifest updates** - PackageVersion, InstallerUrl, InstallerSha256, ReleaseDate👉 **[QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md)** - Fix trong 3 phút!
+
+- 🔍 **Duplicate PR prevention** - Checks existing PRs before creating new ones
+
+- ✅ **Universal version replacement** - Replaces version in all manifest fields automatically### ✅ Setup lần đầu?
+
+- 🤖 **GitHub Actions integration** - Runs on schedule or manually1. **Fork repos:**
+
    - Fork repo này về account của bạn
-   - Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
 
-2. **Setup token:**
-   - 📖 [QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md) - 3 phút
+## Quick Start   - Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
+
+
+
+### 1. Fork Repository2. **Setup token:**
+
+Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) to your account.   - 📖 [QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md) - 3 phút
+
    - 📖 [TOKEN_SETUP.md](TOKEN_SETUP.md) - Chi tiết đầy đủ
 
-3. **Run workflow:**
-   - Actions → Update WinGet Packages → Run workflow
+### 2. Setup Token
 
-4. **Đợi PR:**
-   - Check tại: https://github.com/microsoft/winget-pkgs/pulls?q=author:YOUR_USERNAME
+Create a GitHub Personal Access Token with `repo` and `workflow` scopes:3. **Run workflow:**
 
----
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)   - Actions → Update WinGet Packages → Run workflow
 
-## 📚 Tài liệu
+2. Click "Generate new token (classic)"
 
-### 🔥 Nhanh
-- **[QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md)** - Fix token error trong 3 phút
+3. Select scopes: `repo` (all), `workflow`4. **Đợi PR:**
+
+4. Copy the token   - Check tại: https://github.com/microsoft/winget-pkgs/pulls?q=author:YOUR_USERNAME
+
+
+
+### 3. Add Secret---
+
+In your repository settings:
+
+1. Go to Settings → Secrets and variables → Actions## 📚 Tài liệu
+
+2. Click "New repository secret"
+
+3. Name: `WINGET_PKGS_TOKEN`### 🔥 Nhanh
+
+4. Value: Your token from step 2- **[QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md)** - Fix token error trong 3 phút
+
 - **[SETUP_CHECKLIST.md](SETUP_CHECKLIST.md)** - Checklist đầy đủ
 
-### 📖 Chi tiết
+### 4. Run Workflow
+
+Go to Actions → Update WinGet Packages → Run workflow### 📖 Chi tiết
+
 - **[TOKEN_SETUP.md](TOKEN_SETUP.md)** - Hướng dẫn tạo Personal Access Token
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Fix tất cả các lỗi thường gặp
+
+## Adding New Packages- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Fix tất cả các lỗi thường gặp
+
 - **[TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md)** - Workflow run number vs ID
 
+### Method 1: Web Scraping (Example: VNGCorp.Zalo)
+
 ### 🐛 Debug
-- **[GITHUB_OUTPUT_FIX.md](GITHUB_OUTPUT_FIX.md)** - Fix multiline JSON output
+
+Create `manifests/{Publisher}.{Package}.checkver.yaml`:- **[GITHUB_OUTPUT_FIX.md](GITHUB_OUTPUT_FIX.md)** - Fix multiline JSON output
+
 - **[BUGFIXES.md](BUGFIXES.md)** - Lịch sử các bugs đã fix
-- **[CHANGELOG.md](CHANGELOG.md)** - Lịch sử thay đổi
 
-### 📝 Manifest
-- **[manifests/README.md](manifests/README.md)** - Cấu trúc checkver config
-- **[manifests/EXAMPLES.md](manifests/EXAMPLES.md)** - Ví dụ checkver configs
+```yaml- **[CHANGELOG.md](CHANGELOG.md)** - Lịch sử thay đổi
 
----
-
-## ✨ Tính năng
-
-- ✅ Tự động detect version mới bằng PowerShell scripts
-- ✅ Tự động tính SHA256 hash của installer
-- ✅ Clone manifest từ microsoft/winget-pkgs và update
-- ✅ Tự động tạo PR với format chuẩn
-- ✅ Chạy tự động mỗi 6 giờ
-- ✅ Support nhiều packages với checkver riêng
-- ✅ Full traceability: PR link về workflow run
-
----
-
-## 🏗️ Architecture
-
-### Workflow
-```
-1. GitHub Actions runs every 6 hours (or manual)
-2. Scan manifests/*.checkver.yaml files
-3. Run PowerShell scripts to detect versions
-4. Compare with microsoft/winget-pkgs
-5. If new version found:
-   ├─ Clone your fork
-   ├─ Copy latest manifest
-   ├─ Update version & SHA256
-   ├─ Commit & push to fork
-   └─ Create PR to microsoft/winget-pkgs
-```
-
-### Files Structure
-```
-winget-pkgs-updater/
-├── .github/workflows/
-│   └── update-packages.yml      # Main workflow
-├── manifests/
-│   ├── VNGCorp.Zalo.checkver.yaml  # Checkver config
-│   └── ...more packages...
-├── scripts/
-│   ├── check_version.py         # Version detection
-│   └── update_manifest.py       # Manifest update & PR creation
-└── docs/
-    ├── QUICKSTART_TOKEN.md      # 3-min setup
-    ├── TOKEN_SETUP.md           # Detailed token guide
-    ├── TROUBLESHOOTING.md       # All errors & fixes
-    └── ...more docs...
-```
-
-### Checkver Config Format
-```yaml
 packageIdentifier: VNGCorp.Zalo
-manifestPath: manifests/v/VNGCorp/Zalo
-checkver:
+
+# Path structure: manifests/{first-letter}/{publisher}/{package}### 📝 Manifest
+
+# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/v/VNGCorp/Zalo- **[manifests/README.md](manifests/README.md)** - Cấu trúc checkver config
+
+manifestPath: manifests/v/VNGCorp/Zalo- **[manifests/EXAMPLES.md](manifests/EXAMPLES.md)** - Ví dụ checkver configs
+
+
+
+checkver:---
+
   type: script
-  script: |
-    # PowerShell script to get download URL
-    # Can use Invoke-WebRequest, API calls, etc.
-  regex: "ZaloSetup-([\\d\\.]+)\\.exe"
-installerUrlTemplate: "https://example.com/ZaloSetup-{version}.exe"
-```
+
+  script: |## ✨ Tính năng
+
+    $url = "https://res-zaloapp-aka.zdn.vn/win/ZaloSetup.exe"
+
+    $response = Invoke-WebRequest -Uri $url -MaximumRedirection 0 -ErrorAction SilentlyContinue- ✅ Tự động detect version mới bằng PowerShell scripts
+
+    if ($response.Headers.Location) {- ✅ Tự động tính SHA256 hash của installer
+
+      $redirectUrl = $response.Headers.Location- ✅ Clone manifest từ microsoft/winget-pkgs và update
+
+      if ($redirectUrl -match "ZaloSetup-([\\d\\.]+)\\.exe") {- ✅ Tự động tạo PR với format chuẩn
+
+        Write-Output $matches[1]- ✅ Chạy tự động mỗi 6 giờ
+
+      }- ✅ Support nhiều packages với checkver riêng
+
+    }- ✅ Full traceability: PR link về workflow run
+
+  regex: "([\\d\\.]+)"
 
 ---
+
+installerUrlTemplate: "https://res-zaloapp-aka.zdn.vn/win/ZaloSetup-{version}.exe"
+
+```## 🏗️ Architecture
+
+
+
+### Method 2: GitHub Releases (Example: Seelen.SeelenUI)### Workflow
+
+```
+
+Create `manifests/{Publisher}.{Package}.checkver.yaml`:1. GitHub Actions runs every 6 hours (or manual)
+
+2. Scan manifests/*.checkver.yaml files
+
+```yaml3. Run PowerShell scripts to detect versions
+
+packageIdentifier: Seelen.SeelenUI4. Compare with microsoft/winget-pkgs
+
+# Path structure: manifests/{first-letter}/{publisher}/{package}5. If new version found:
+
+# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/s/Seelen/SeelenUI   ├─ Clone your fork
+
+manifestPath: manifests/s/Seelen/SeelenUI   ├─ Copy latest manifest
+
+   ├─ Update version & SHA256
+
+checkver:   ├─ Commit & push to fork
+
+  type: script   └─ Create PR to microsoft/winget-pkgs
+
+  script: |```
+
+    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/eythaann/Seelen-UI/releases/latest"
+
+    if ($response.tag_name) {### Files Structure
+
+      $version = $response.tag_name -replace '^v', ''```
+
+      Write-Output $versionwinget-pkgs-updater/
+
+    }├── .github/workflows/
+
+  regex: "([\\d\\.]+)"│   └── update-packages.yml      # Main workflow
+
+├── manifests/
+
+installerUrlTemplate: "https://github.com/eythaann/Seelen-UI/releases/download/v{version}/Seelen.UI_{version}_x64-setup.exe"│   ├── VNGCorp.Zalo.checkver.yaml  # Checkver config
+
+```│   └── ...more packages...
+
+├── scripts/
+
+### Important Notes│   ├── check_version.py         # Version detection
+
+│   └── update_manifest.py       # Manifest update & PR creation
+
+1. **manifestPath structure**: `manifests/{first-letter}/{publisher}/{package}`└── docs/
+
+   - First letter is the lowercase first character of the publisher name    ├── QUICKSTART_TOKEN.md      # 3-min setup
+
+   - Example: `Seelen` → `manifests/s/Seelen/SeelenUI`    ├── TOKEN_SETUP.md           # Detailed token guide
+
+   - Example: `VNGCorp` → `manifests/v/VNGCorp/Zalo`    ├── TROUBLESHOOTING.md       # All errors & fixes
+
+    └── ...more docs...
+
+2. **Find existing manifests**: Check [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs/tree/master/manifests) for the exact path structure```
+
+
+
+3. **Version format**: Must match the version in microsoft/winget-pkgs (e.g., `2.3.12.0` not `2.3.12`)### Checkver Config Format
+
+```yaml
+
+## How It WorkspackageIdentifier: VNGCorp.Zalo
+
+manifestPath: manifests/v/VNGCorp/Zalo
+
+1. **Check Version**: Runs PowerShell script to detect latest versioncheckver:
+
+2. **Download Installer**: Downloads the installer file  type: script
+
+3. **Calculate SHA256**: Computes hash of the installer  script: |
+
+4. **Update Manifest**: Replaces all version occurrences + updates SHA256 and ReleaseDate    # PowerShell script to get download URL
+
+5. **Check Existing PR**: Searches for open/merged PRs with same version    # Can use Invoke-WebRequest, API calls, etc.
+
+6. **Create PR**: If no duplicate found, creates PR to microsoft/winget-pkgs  regex: "ZaloSetup-([\\d\\.]+)\\.exe"
+
+installerUrlTemplate: "https://example.com/ZaloSetup-{version}.exe"
+
+## Troubleshooting```
+
+
+
+### Error: GITHUB_TOKEN not set---
+
+Add `WINGET_PKGS_TOKEN` secret in repository settings.
 
 ## 🔧 Adding New Packages
 
-### 1. Create checkver config
+### Error: Package not found in microsoft/winget-pkgs
+
+Check that the package exists and `manifestPath` is correct. Visit:### 1. Create checkver config
+
+`https://github.com/microsoft/winget-pkgs/tree/master/{manifestPath}`
 
 File: `manifests/Your.Package.checkver.yaml`
-```yaml
-packageIdentifier: Your.Package
-manifestPath: manifests/y/Your/Package
+
+### PR already exists```yaml
+
+This is normal - the tool prevents duplicate PRs. Check existing PRs at:packageIdentifier: Your.Package
+
+`https://github.com/microsoft/winget-pkgs/pulls?q=is%3Apr+{PackageIdentifier}`manifestPath: manifests/y/Your/Package
+
 checkver:
-  type: script
+
+## License  type: script
+
   script: |
-    # PowerShell to get version
+
+MIT    # PowerShell to get version
+
     Invoke-WebRequest -Uri "https://api.example.com/version"
   regex: "v([\\d\\.]+)"
 installerUrlTemplate: "https://example.com/installer-{version}.exe"

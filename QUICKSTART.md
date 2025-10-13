@@ -1,63 +1,123 @@
-# Quick Start Guide | Hướng Dẫn Nhanh
+# Quick Start Guide# Quick Start Guide | Hướng Dẫn Nhanh
 
-## English
 
-### What is this?
 
-This project automatically creates Pull Requests to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) when it detects new versions of applications.
+Get up and running in 5 minutes.## English
+
+
+
+## Prerequisites### What is this?
+
+
+
+- GitHub accountThis project automatically creates Pull Requests to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) when it detects new versions of applications.
+
+- Fork of [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
 
 ### Quick Setup (5 minutes)
 
+## Setup Steps
+
 1. **Fork this repository**
-   - Click "Fork" button at the top right
 
-2. **Fork microsoft/winget-pkgs**
-   - Go to https://github.com/microsoft/winget-pkgs
-   - Click "Fork" button
-   - Note your fork URL (e.g., `yourusername/winget-pkgs`)
+### 1. Create Personal Access Token   - Click "Fork" button at the top right
 
-3. **Create Personal Access Token**
-   - Go to https://github.com/settings/tokens
-   - Click "Generate new token (classic)"
+
+
+1. Go to [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)2. **Fork microsoft/winget-pkgs**
+
+2. Click **"Generate new token (classic)"**   - Go to https://github.com/microsoft/winget-pkgs
+
+3. Name: `WinGet Packages Updater`   - Click "Fork" button
+
+4. Select scopes:   - Note your fork URL (e.g., `yourusername/winget-pkgs`)
+
+   - ✅ `repo` (all sub-scopes)
+
+   - ✅ `workflow`3. **Create Personal Access Token**
+
+5. Click **"Generate token"**   - Go to https://github.com/settings/tokens
+
+6. **Copy the token** (you won't see it again!)   - Click "Generate new token (classic)"
+
    - Select scopes: `repo` and `workflow`
-   - Copy the token
 
-4. **Add Secret to Your Repository**
-   - Go to your forked repo → Settings → Secrets and variables → Actions
-   - Add secret:
-     - Name: `WINGET_PKGS_TOKEN`
-     - Value: Your personal access token
+### 2. Add Secret to Repository   - Copy the token
+
+
+
+1. Go to your fork's **Settings → Secrets and variables → Actions**4. **Add Secret to Your Repository**
+
+2. Click **"New repository secret"**   - Go to your forked repo → Settings → Secrets and variables → Actions
+
+3. Name: `WINGET_PKGS_TOKEN`   - Add secret:
+
+4. Value: Paste your token from step 1     - Name: `WINGET_PKGS_TOKEN`
+
+5. Click **"Add secret"**     - Value: Your personal access token
+
    - Note: Fork URL is auto-detected from your GitHub username
 
+### 3. Run Workflow
+
 5. **Enable GitHub Actions**
-   - Go to Actions tab
-   - Click "I understand my workflows, go ahead and enable them"
 
-### Test It!
+1. Go to **Actions** tab   - Go to Actions tab
 
-1. Go to Actions tab
+2. Select **"Update WinGet Packages"** workflow   - Click "I understand my workflows, go ahead and enable them"
+
+3. Click **"Run workflow"** → **"Run workflow"**
+
+4. Wait for the workflow to complete### Test It!
+
+
+
+### 4. Check Results1. Go to Actions tab
+
 2. Click "Update WinGet Packages"
-3. Click "Run workflow"
-4. Watch it run!
 
-### Next Steps
+- Check workflow logs for update details3. Click "Run workflow"
 
-- Read [SETUP.md](SETUP.md) for detailed setup
-- Read [CONTRIBUTING.md](CONTRIBUTING.md) to add more packages
-- Check the workflow runs in the Actions tab
+- Check PRs at: `https://github.com/microsoft/winget-pkgs/pulls?q=author:YOUR_USERNAME`4. Watch it run!
+
+
+
+## Add Your First Package### Next Steps
+
+
+
+1. Create `manifests/{Publisher}.{Package}.checkver.yaml`- Read [SETUP.md](SETUP.md) for detailed setup
+
+2. Follow the examples in README.md- Read [CONTRIBUTING.md](CONTRIBUTING.md) to add more packages
+
+3. Commit and push- Check the workflow runs in the Actions tab
+
+4. Run workflow again
 
 ---
 
+## Common Issues
+
 ## Tiếng Việt
+
+**Token error**: Make sure the secret name is exactly `WINGET_PKGS_TOKEN`
 
 ### Đây là gì?
 
+**Package not found**: Check `manifestPath` points to correct location in microsoft/winget-pkgs
+
 Dự án này tự động tạo Pull Request lên [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) khi phát hiện phiên bản mới của các ứng dụng.
+
+**PR already exists**: This is normal - duplicate prevention is working
 
 ### Cài Đặt Nhanh (5 phút)
 
+## Need Help?
+
 1. **Fork repository này**
-   - Click nút "Fork" ở góc trên bên phải
+
+Check the main [README.md](README.md) for detailed documentation.   - Click nút "Fork" ở góc trên bên phải
+
 
 2. **Fork microsoft/winget-pkgs**
    - Vào https://github.com/microsoft/winget-pkgs

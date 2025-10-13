@@ -1,4 +1,6 @@
 packageIdentifier: Seelen.SeelenUI
+# Path structure: manifests/{first-letter}/{publisher}/{package}
+# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/s/Seelen/SeelenUI
 manifestPath: manifests/s/Seelen/SeelenUI
 
 checkver:

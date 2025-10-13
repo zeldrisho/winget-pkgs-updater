@@ -3,6 +3,8 @@
 # The actual manifests are fetched from microsoft/winget-pkgs
 
 packageIdentifier: VNGCorp.Zalo
+# Path structure: manifests/{first-letter}/{publisher}/{package}
+# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/v/VNGCorp/Zalo
 manifestPath: manifests/v/VNGCorp/Zalo  # Path in microsoft/winget-pkgs
 
 checkver:
