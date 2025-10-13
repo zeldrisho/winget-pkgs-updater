@@ -1,0 +1,19 @@
+packageIdentifier: VNGCorp.Zalo
+updateMethod: web
+checkUrl: https://www.zalo.me/download
+installerUrlPattern: https://res-zalo-pc-stc.zadn.vn/win/Zalo-{version}-win64.msi
+architecture: x64
+installerType: msi
+productCode: "{PRODUCTCODE}"
+releaseNotesUrl: https://www.zalo.me
+publisher: VNG Corporation
+packageName: Zalo
+license: Proprietary
+shortDescription: Zalo - Nhắn Gửi Yêu Thương
+description: |
+  Zalo PC - Kết nối với những người thân yêu của bạn thông qua tin nhắn, cuộc gọi và nhiều tính năng khác.
+tags:
+  - messenger
+  - chat
+  - communication
+  - video-call
