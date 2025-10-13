@@ -21,7 +21,8 @@ from typing import Dict, List, Optional
 def check_existing_pr(package_id: str, version: str) -> bool:
     """
     Check if PR already exists for this package version.
-    Returns True if PR exists (should skip), False if no PR found (should create).
+    Returns True if OPEN or MERGED PR exists (should skip), False otherwise (should create).
+    Note: CLOSED PRs are ignored - we can retry them.
     """
     try:
         title = f"New version: {package_id} version {version}"
@@ -46,14 +47,24 @@ def check_existing_pr(package_id: str, version: str) -> bool:
             if prs:
                 for pr in prs:
                     if title.lower() in pr['title'].lower():
-                        state_emoji = "🟢" if pr['state'] == "OPEN" else "🟣" if pr['state'] == "MERGED" else "⚪"
-                        print(f"⏭️  {state_emoji} PR already exists: #{pr['number']} ({pr['state']})")
-                        print(f"   Title: {pr['title']}")
-                        print(f"   URL: https://github.com/microsoft/winget-pkgs/pull/{pr['number']}")
-                        return True  # Skip - PR exists
+                        state = pr['state']
+                        state_emoji = "🟢" if state == "OPEN" else "🟣" if state == "MERGED" else "⚪"
+                        
+                        # Only skip for OPEN or MERGED PRs
+                        if state in ["OPEN", "MERGED"]:
+                            print(f"⏭️  {state_emoji} PR already exists: #{pr['number']} ({state})")
+                            print(f"   Title: {pr['title']}")
+                            print(f"   URL: https://github.com/microsoft/winget-pkgs/pull/{pr['number']}")
+                            print(f"   Skipping - PR is {state}")
+                            return True  # Skip - PR exists and is open/merged
+                        else:
+                            # CLOSED PR - we can retry
+                            print(f"   ⚪ Found CLOSED PR: #{pr['number']}")
+                            print(f"   URL: https://github.com/microsoft/winget-pkgs/pull/{pr['number']}")
+                            print(f"   Will create new PR (closed PRs can be retried)")
         
-        print("✅ No existing PR found - will create new one")
-        return False  # No PR found - should create
+        print("✅ No active PR found - will create new one")
+        return False  # No active PR found - should create
         
     except subprocess.CalledProcessError as e:
         print(f"Warning: Could not check existing PRs: {e}")
