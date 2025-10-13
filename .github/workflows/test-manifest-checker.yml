@@ -7,6 +7,14 @@ on:
         description: 'Package to test (e.g., VNGCorp.Zalo or Seelen.SeelenUI)'
         required: false
         default: ''
+      test_fork_commit:
+        description: 'Test fork commit? (creates branch and commit on your winget-pkgs fork)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
   pull_request:
     paths:
       - 'manifests/**.yaml'
@@ -39,6 +47,11 @@ jobs:
         run: |
           pip install -r scripts/requirements.txt
       
+      - name: Install GitHub CLI
+        if: github.event.inputs.test_fork_commit == 'true'
+        run: |
+          sudo apt-get install -y gh
+      
       - name: Find checkver configs
         id: find-configs
         run: |
@@ -46,8 +59,12 @@ jobs:
             # Test specific package
             configs=$(find manifests -name "${{ github.event.inputs.package }}.checkver.yaml")
           else
-            # Test all packages
+            # Test all packages (limit to first one for fork commit test)
             configs=$(find manifests -name "*.checkver.yaml")
+            if [ "${{ github.event.inputs.test_fork_commit }}" == "true" ]; then
+              # Only test first package for fork commit
+              configs=$(echo "$configs" | head -1)
+            fi
           fi
           
           echo "Found configs:"
@@ -58,22 +75,30 @@ jobs:
           echo "configs=$json_array" >> $GITHUB_OUTPUT
       
       - name: Test checkver configurations
+        id: test-checkver
         run: |
           echo "=== Testing Checkver Configurations ==="
           echo ""
           
           configs='${{ steps.find-configs.outputs.configs }}'
           
-          # Parse JSON array
+          # Parse JSON array and test
           echo "$configs" | jq -r '.[]' | while read -r config; do
             if [ -f "$config" ]; then
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               echo "Testing: $config"
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               
-              # Run check_version.py
-              if python3 scripts/check_version.py "$config"; then
+              # Run check_version.py and save output
+              output_file="/tmp/version_info_$(basename $config .checkver.yaml).json"
+              if python3 scripts/check_version.py "$config" "$output_file"; then
                 echo "✅ SUCCESS: $config"
+                
+                # Save first config for fork test
+                if [ "${{ github.event.inputs.test_fork_commit }}" == "true" ]; then
+                  echo "version_info_file=$output_file" >> $GITHUB_OUTPUT
+                  break  # Only test first package for fork commit
+                fi
               else
                 echo "❌ FAILED: $config"
                 exit 1
@@ -86,10 +111,108 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "✅ All tests passed!"
       
+      - name: Clone winget-pkgs fork
+        if: github.event.inputs.test_fork_commit == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
+        run: |
+          echo "=== Cloning winget-pkgs fork ==="
+          
+          # Get GitHub username
+          username=$(gh api user -q .login)
+          echo "GitHub username: $username"
+          
+          # Clone fork
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${username}/winget-pkgs.git" /tmp/winget-pkgs
+          cd /tmp/winget-pkgs
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          echo "✅ Fork cloned successfully"
+      
+      - name: Create test branch and commit
+        if: github.event.inputs.test_fork_commit == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
+        run: |
+          echo "=== Creating test branch and commit ==="
+          
+          # Get version info from previous step
+          version_info_file="${{ steps.test-checkver.outputs.version_info_file }}"
+          
+          if [ ! -f "$version_info_file" ]; then
+            echo "❌ Version info file not found: $version_info_file"
+            exit 1
+          fi
+          
+          # Read version info
+          package_id=$(jq -r '.package_id' "$version_info_file")
+          new_version=$(jq -r '.new_version' "$version_info_file")
+          
+          echo "Package: $package_id"
+          echo "Version: $new_version"
+          
+          # Create branch name
+          branch_name="test/auto-update-${package_id}-${new_version}-$(date +%s)"
+          echo "Branch: $branch_name"
+          
+          cd /tmp/winget-pkgs
+          
+          # Create and checkout branch
+          git checkout -b "$branch_name"
+          
+          # Run update_manifest.py (without PR creation)
+          echo "Running update_manifest.py..."
+          cd /workspaces/winget-pkgs-updater
+          
+          # Get config path
+          config_path=$(find manifests -name "${package_id}.checkver.yaml")
+          
+          # Run update script (it will update manifests in /tmp/winget-pkgs)
+          python3 scripts/update_manifest.py "$config_path" "$version_info_file" --no-pr --fork-path /tmp/winget-pkgs
+          
+          # Check if there are changes
+          cd /tmp/winget-pkgs
+          
+          if git diff --quiet; then
+            echo "ℹ️  No changes to commit"
+            exit 0
+          fi
+          
+          # Show changes
+          echo "=== Changes ==="
+          git status
+          git diff --stat
+          
+          # Commit changes
+          git add .
+          git commit -m "test: Update ${package_id} to ${new_version}
+
+This is an automated test commit from the test-manifest-checker workflow.
+Not intended for actual PR submission."
+          
+          # Push to fork
+          echo "Pushing to fork..."
+          git push -u origin "$branch_name"
+          
+          echo ""
+          echo "✅ Test branch created and pushed: $branch_name"
+          echo "View at: https://github.com/$(gh api user -q .login)/winget-pkgs/tree/$branch_name"
+      
       - name: Summary
         if: always()
         run: |
           echo "### Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Note:** This workflow only tests version detection." >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event.inputs.test_fork_commit }}" == "true" ]; then
+            echo "**Mode:** Full integration test (checkver + fork commit)" >> $GITHUB_STEP_SUMMARY
+            echo "**Fork operations:** Branch created and pushed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Mode:** Checkver test only" >> $GITHUB_STEP_SUMMARY
+            echo "**Note:** No fork operations performed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "No PRs are created in test mode." >> $GITHUB_STEP_SUMMARY

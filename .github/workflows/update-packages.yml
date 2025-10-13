@@ -151,7 +151,7 @@ jobs:
       - name: Update manifest and create PR
         if: steps.check-version.outputs.has_update == 'true'
         run: |
-          python scripts/update_manifest.py version_info.json
+          python scripts/update_manifest.py "${{ matrix.package }}.checkver.yaml" version_info.json
         env:
           # Use WINGET_PKGS_TOKEN if available, fallback to GITHUB_TOKEN
           # Note: GITHUB_TOKEN only works for PRs in same repo, use PAT for forks

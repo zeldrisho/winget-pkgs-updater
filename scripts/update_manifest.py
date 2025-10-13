@@ -12,6 +12,7 @@ import yaml
 import hashlib
 import requests
 import tempfile
+import argparse
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -505,13 +506,19 @@ def create_pull_request(
 
 def main():
     """Main entry point"""
-    if len(sys.argv) < 2:
-        print("Usage: update_manifest.py <version_info.json>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='Update WinGet manifest with new version'
+    )
+    parser.add_argument('checkver_config', help='Path to checkver config file')
+    parser.add_argument('version_info', help='Path to version info JSON file')
+    parser.add_argument('--no-pr', action='store_true',
+                        help='Update manifests without creating PR (for testing)')
+    parser.add_argument('--fork-path', help='Path to existing fork clone (for testing)')
+    
+    args = parser.parse_args()
     
     # Load version info from check_version.py output
-    version_info_file = sys.argv[1]
-    with open(version_info_file, 'r') as f:
+    with open(args.version_info, 'r') as f:
         version_info = json.load(f)
     
     package_id = version_info['packageIdentifier']
@@ -529,8 +536,8 @@ def main():
     if release_notes:
         print(f"📝 Release notes available ({len(release_notes)} chars)")
     
-    # Check if PR already exists BEFORE doing any work
-    if check_existing_pr(package_id, version):
+    # Check if PR already exists BEFORE doing any work (skip if --no-pr)
+    if not args.no_pr and check_existing_pr(package_id, version):
         print("⏭️  Skipping update - PR already exists")
         sys.exit(0)  # Exit successfully - no work needed
     
@@ -545,35 +552,51 @@ def main():
         print("Error: GITHUB_TOKEN or GH_TOKEN environment variable not set", file=sys.stderr)
         sys.exit(1)
     
-    # Create temporary directory for cloning
-    with tempfile.TemporaryDirectory() as temp_dir:
-        repo_dir = os.path.join(temp_dir, 'winget-pkgs')
-        
-        # Clone fork
-        if not clone_winget_pkgs(fork_owner, repo_dir, token):
-            print("Failed to clone repository")
-            sys.exit(1)
-        
-        # Create branch
-        branch_name = create_pr_branch(repo_dir, package_id, version)
-        print(f"Created branch: {branch_name}")
+    # Use provided fork path or create temporary directory
+    if args.fork_path:
+        # Use existing fork clone
+        repo_dir = args.fork_path
+        print(f"Using existing fork at: {repo_dir}")
         
         # Update manifests with release notes
         if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url):
             print("Failed to update manifests")
             sys.exit(1)
         
-        # Commit and push
-        if not commit_and_push(repo_dir, package_id, version, branch_name, token):
-            print("Failed to commit/push changes")
-            sys.exit(1)
-        
-        # Create PR
-        if not create_pull_request(fork_owner, package_id, version, branch_name, workflow_run_number, workflow_run_id, repo_name):
-            print("Failed to create pull request")
-            sys.exit(1)
-    
-    print(f"✅ Successfully created PR for {package_id} version {version}")
+        print(f"✅ Successfully updated manifests in {repo_dir}")
+    else:
+        # Create temporary directory for cloning (original workflow)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_dir = os.path.join(temp_dir, 'winget-pkgs')
+            
+            # Clone fork
+            if not clone_winget_pkgs(fork_owner, repo_dir, token):
+                print("Failed to clone repository")
+                sys.exit(1)
+            
+            # Create branch
+            branch_name = create_pr_branch(repo_dir, package_id, version)
+            print(f"Created branch: {branch_name}")
+            
+            # Update manifests with release notes
+            if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url):
+                print("Failed to update manifests")
+                sys.exit(1)
+            
+            # Commit and push
+            if not commit_and_push(repo_dir, package_id, version, branch_name, token):
+                print("Failed to commit/push changes")
+                sys.exit(1)
+            
+            # Create PR (skip if --no-pr)
+            if not args.no_pr:
+                if not create_pull_request(fork_owner, package_id, version, branch_name, workflow_run_number, workflow_run_id, repo_name):
+                    print("Failed to create pull request")
+                    sys.exit(1)
+                
+                print(f"✅ Successfully created PR for {package_id} version {version}")
+            else:
+                print(f"✅ Successfully updated manifests for {package_id} version {version} (no PR created)")
 
 
 if __name__ == '__main__':
