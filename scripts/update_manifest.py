@@ -288,6 +288,32 @@ def create_pull_request(
     try:
         title = f"New version: {package_id} version {version}"
         
+        # Check if PR already exists (open or merged)
+        print(f"Checking for existing PRs with title: {title}")
+        check_result = subprocess.run(
+            [
+                'gh', 'pr', 'list',
+                '--repo', 'microsoft/winget-pkgs',
+                '--search', f'"{title}" in:title',
+                '--state', 'all',  # Check both open and closed (merged) PRs
+                '--json', 'title,state,number',
+                '--limit', '5'
+            ],
+            capture_output=True,
+            text=True
+        )
+        
+        if check_result.returncode == 0 and check_result.stdout.strip():
+            import json
+            existing_prs = json.loads(check_result.stdout)
+            if existing_prs:
+                for pr in existing_prs:
+                    if pr['title'] == title:
+                        print(f"⏭️  PR already exists: #{pr['number']} ({pr['state']})")
+                        print(f"   Title: {pr['title']}")
+                        print(f"   Skipping PR creation to avoid duplicates")
+                        return True  # Return success - no need to create duplicate
+        
         # Build PR body with separate links for repo and workflow run
         repo_url = f"https://github.com/{fork_owner}/{repo_name}"
         workflow_url = f"https://github.com/{fork_owner}/{repo_name}/actions/runs/{workflow_run_id}"
