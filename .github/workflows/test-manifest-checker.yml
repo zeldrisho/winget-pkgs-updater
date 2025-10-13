@@ -109,7 +109,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          echo "✅ Fork cloned successfully"
+          # Add upstream remote for microsoft/winget-pkgs
+          git remote add upstream https://github.com/microsoft/winget-pkgs.git
+          
+          # Fetch main branch from upstream (shallow fetch)
+          git fetch upstream main --depth=1
+          
+          echo "✅ Fork cloned successfully with upstream remote"
       
       - name: Create test branch and commit
         env:
@@ -126,11 +132,13 @@ jobs:
           fi
           
           # Read version info
-          package_id=$(jq -r '.package_id' "$version_info_file")
-          new_version=$(jq -r '.new_version' "$version_info_file")
+          package_id=$(jq -r '.packageIdentifier' "$version_info_file")
+          new_version=$(jq -r '.version' "$version_info_file")
+          manifest_path=$(jq -r '.checkver_config.manifestPath' "$version_info_file")
           
           echo "Package: $package_id"
           echo "Version: $new_version"
+          echo "Manifest path: $manifest_path"
           
           # Create branch name
           branch_name="test/auto-update-${package_id}-${new_version}-$(date +%s)"
@@ -138,8 +146,19 @@ jobs:
           
           cd /tmp/winget-pkgs
           
-          # Create and checkout branch
-          git checkout -b "$branch_name"
+          # Create and checkout branch from upstream/main
+          echo "Creating branch from upstream/main..."
+          git checkout -b "$branch_name" upstream/main
+          
+          # Verify manifest exists
+          if [ ! -d "$manifest_path" ]; then
+            echo "❌ Manifest path not found in upstream: $manifest_path"
+            echo "Available manifests:"
+            ls -la manifests/ | head -20
+            exit 1
+          fi
+          
+          echo "✅ Manifest found: $manifest_path"
           
           # Get current directory
           WORKSPACE_DIR="${GITHUB_WORKSPACE}"
@@ -151,14 +170,23 @@ jobs:
           # Get config path
           config_path=$(find manifests -name "${package_id}.checkver.yaml")
           
+          if [ -z "$config_path" ]; then
+            echo "❌ Checkver config not found for ${package_id}"
+            exit 1
+          fi
+          
+          echo "Using checkver config: $config_path"
+          
           # Run update script (it will update manifests in /tmp/winget-pkgs)
           python3 scripts/update_manifest.py "$config_path" "$version_info_file" --no-pr --fork-path /tmp/winget-pkgs
           
           # Check if there are changes
           cd /tmp/winget-pkgs
           
-          if git diff --quiet; then
+          if git diff --quiet && git diff --cached --quiet; then
             echo "ℹ️  No changes to commit"
+            echo "Git status:"
+            git status
             exit 0
           fi
           
@@ -166,6 +194,9 @@ jobs:
           echo "=== Changes ==="
           git status
           git diff --stat
+          echo ""
+          echo "=== Detailed diff ==="
+          git diff --color=always | head -100
           
           # Commit changes
           git add .

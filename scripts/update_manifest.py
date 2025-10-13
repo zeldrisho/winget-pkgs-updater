@@ -264,7 +264,7 @@ def update_manifest_content(
 
 
 def clone_winget_pkgs(fork_owner: str, temp_dir: str, token: str) -> bool:
-    """Clone forked winget-pkgs repository"""
+    """Clone forked winget-pkgs repository and setup upstream"""
     try:
         # Use token in URL for authentication
         repo_url = f"https://{token}@github.com/{fork_owner}/winget-pkgs.git"
@@ -288,6 +288,25 @@ def clone_winget_pkgs(fork_owner: str, temp_dir: str, token: str) -> bool:
             check=True
         )
         
+        # Add upstream remote for microsoft/winget-pkgs
+        print("Adding upstream remote (microsoft/winget-pkgs)...")
+        subprocess.run(
+            ['git', 'remote', 'add', 'upstream', 'https://github.com/microsoft/winget-pkgs.git'],
+            cwd=temp_dir,
+            check=True,
+            capture_output=True
+        )
+        
+        # Fetch main branch from upstream (shallow fetch)
+        print("Fetching from upstream...")
+        subprocess.run(
+            ['git', 'fetch', 'upstream', 'main', '--depth=1'],
+            cwd=temp_dir,
+            check=True,
+            capture_output=True
+        )
+        
+        print("✅ Fork cloned with upstream remote configured")
         return True
     except Exception as e:
         print(f"Error cloning repository: {e}", file=sys.stderr)
@@ -295,15 +314,17 @@ def clone_winget_pkgs(fork_owner: str, temp_dir: str, token: str) -> bool:
 
 
 def create_pr_branch(repo_dir: str, package_id: str, version: str) -> str:
-    """Create and checkout new branch for PR"""
+    """Create and checkout new branch for PR from upstream/main"""
     branch_name = f"{package_id}-{version}"
     try:
+        print(f"Creating branch '{branch_name}' from upstream/main...")
         subprocess.run(
-            ['git', 'checkout', '-b', branch_name],
+            ['git', 'checkout', '-b', branch_name, 'upstream/main'],
             cwd=repo_dir,
             check=True,
             capture_output=True
         )
+        print(f"✅ Branch created: {branch_name}")
         return branch_name
     except Exception as e:
         print(f"Error creating branch: {e}", file=sys.stderr)
