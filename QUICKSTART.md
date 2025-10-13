@@ -22,11 +22,12 @@ This project automatically creates Pull Requests to [microsoft/winget-pkgs](http
    - Select scopes: `repo` and `workflow`
    - Copy the token
 
-4. **Add Secrets to Your Repository**
+4. **Add Secret to Your Repository**
    - Go to your forked repo → Settings → Secrets and variables → Actions
-   - Add two secrets:
-     - `WINGET_TOKEN`: Your personal access token
-     - `WINGET_FORK_REPO`: Your fork (e.g., `yourusername/winget-pkgs`)
+   - Add secret:
+     - Name: `WINGET_PKGS_TOKEN`
+     - Value: Your personal access token
+   - Note: Fork URL is auto-detected from your GitHub username
 
 5. **Enable GitHub Actions**
    - Go to Actions tab
@@ -69,11 +70,12 @@ Dự án này tự động tạo Pull Request lên [microsoft/winget-pkgs](https
    - Chọn quyền: `repo` và `workflow`
    - Copy token
 
-4. **Thêm Secrets vào Repository của bạn**
+4. **Thêm Secret vào Repository của bạn**
    - Vào repo đã fork → Settings → Secrets and variables → Actions
-   - Thêm hai secrets:
-     - `WINGET_TOKEN`: Token vừa tạo
-     - `WINGET_FORK_REPO`: Fork của bạn (ví dụ: `tendangnguoidung/winget-pkgs`)
+   - Thêm secret:
+     - Name: `WINGET_PKGS_TOKEN`
+     - Value: Token vừa tạo
+   - Lưu ý: Fork URL tự động detect từ GitHub username
 
 5. **Kích hoạt GitHub Actions**
    - Vào tab Actions

@@ -38,19 +38,17 @@ The token is used to create branches and PRs on your behalf:
 
 ### 4. Configure Repository Secrets
 
-Add the following secrets to your forked repository:
+Add the following secret to your forked repository:
 
 1. Go to your forked repository's Settings → Secrets and variables → Actions
 2. Click "New repository secret"
-3. Add these two secrets:
+3. Add this secret:
 
-   **Secret 1: WINGET_TOKEN**
-   - Name: `WINGET_TOKEN`
+   **Secret: WINGET_PKGS_TOKEN**
+   - Name: `WINGET_PKGS_TOKEN`
    - Value: The Personal Access Token you created above
-
-   **Secret 2: WINGET_FORK_REPO**
-   - Name: `WINGET_FORK_REPO`
-   - Value: Your fork path (e.g., `yourusername/winget-pkgs`)
+   
+   Note: Your fork URL is automatically detected from your GitHub username. The workflow will clone `https://github.com/YOUR_USERNAME/winget-pkgs`.
 
 ### 5. Enable GitHub Actions
 
@@ -137,8 +135,8 @@ python scripts/generate_manifest.py \
 
 ### PR Not Created
 
-- Ensure `WINGET_TOKEN` has correct permissions
-- Verify `WINGET_FORK_REPO` points to your fork (format: `username/winget-pkgs`)
+- Ensure `WINGET_PKGS_TOKEN` has correct permissions (`repo` + `workflow`)
+- Verify your fork exists at: `https://github.com/YOUR_USERNAME/winget-pkgs`
 - Check that your fork of winget-pkgs is up to date with upstream
 
 ### Version Not Detected
@@ -178,7 +176,7 @@ Your microsoft/winget-pkgs fork should be periodically synced:
 If your Personal Access Token expires:
 
 1. Create a new token (follow step 3 above)
-2. Update the `WINGET_TOKEN` secret in repository settings
+2. Update the `WINGET_PKGS_TOKEN` secret in repository settings
 
 ## Advanced Configuration
 
