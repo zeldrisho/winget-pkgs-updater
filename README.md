@@ -79,4 +79,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guide on adding new packages
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file.
+GPL-3.0 License - see [LICENSE](LICENSE) file.

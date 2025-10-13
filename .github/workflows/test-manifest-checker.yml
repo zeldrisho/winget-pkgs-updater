@@ -1,20 +1,6 @@
 name: Test Manifest Checker
 
 on:
-  workflow_dispatch:
-    inputs:
-      package:
-        description: 'Package to test (e.g., VNGCorp.Zalo or Seelen.SeelenUI)'
-        required: false
-        default: ''
-      test_fork_commit:
-        description: 'Test fork commit? (creates branch and commit on your winget-pkgs fork)'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
   pull_request:
     paths:
       - 'manifests/**.yaml'
@@ -48,24 +34,14 @@ jobs:
           pip install -r scripts/requirements.txt
       
       - name: Install GitHub CLI
-        if: github.event.inputs.test_fork_commit == 'true'
         run: |
           sudo apt-get install -y gh
       
       - name: Find checkver configs
         id: find-configs
         run: |
-          if [ -n "${{ github.event.inputs.package }}" ]; then
-            # Test specific package
-            configs=$(find manifests -name "${{ github.event.inputs.package }}.checkver.yaml")
-          else
-            # Test all packages (limit to first one for fork commit test)
-            configs=$(find manifests -name "*.checkver.yaml")
-            if [ "${{ github.event.inputs.test_fork_commit }}" == "true" ]; then
-              # Only test first package for fork commit
-              configs=$(echo "$configs" | head -1)
-            fi
-          fi
+          # Test all changed checkver configs
+          configs=$(find manifests -name "*.checkver.yaml")
           
           echo "Found configs:"
           echo "$configs"
@@ -95,10 +71,8 @@ jobs:
                 echo "✅ SUCCESS: $config"
                 
                 # Save first config for fork test
-                if [ "${{ github.event.inputs.test_fork_commit }}" == "true" ]; then
-                  echo "version_info_file=$output_file" >> $GITHUB_OUTPUT
-                  break  # Only test first package for fork commit
-                fi
+                echo "version_info_file=$output_file" >> $GITHUB_OUTPUT
+                break  # Only test first package for fork commit
               else
                 echo "❌ FAILED: $config"
                 exit 1
@@ -112,7 +86,6 @@ jobs:
           echo "✅ All tests passed!"
       
       - name: Clone winget-pkgs fork
-        if: github.event.inputs.test_fork_commit == 'true'
         env:
           GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
         run: |
@@ -133,7 +106,6 @@ jobs:
           echo "✅ Fork cloned successfully"
       
       - name: Create test branch and commit
-        if: github.event.inputs.test_fork_commit == 'true'
         env:
           GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
         run: |
@@ -163,9 +135,12 @@ jobs:
           # Create and checkout branch
           git checkout -b "$branch_name"
           
+          # Get current directory
+          WORKSPACE_DIR="${GITHUB_WORKSPACE}"
+          
           # Run update_manifest.py (without PR creation)
           echo "Running update_manifest.py..."
-          cd /workspaces/winget-pkgs-updater
+          cd "${WORKSPACE_DIR}"
           
           # Get config path
           config_path=$(find manifests -name "${package_id}.checkver.yaml")
@@ -205,13 +180,7 @@ jobs:
         run: |
           echo "### Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "${{ github.event.inputs.test_fork_commit }}" == "true" ]; then
-            echo "**Mode:** Full integration test (checkver + fork commit)" >> $GITHUB_STEP_SUMMARY
-            echo "**Fork operations:** Branch created and pushed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Mode:** Checkver test only" >> $GITHUB_STEP_SUMMARY
-            echo "**Note:** No fork operations performed" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "**Mode:** Full integration test (checkver + fork commit)" >> $GITHUB_STEP_SUMMARY
+          echo "**Fork operations:** Branch created and pushed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "No PRs are created in test mode." >> $GITHUB_STEP_SUMMARY
