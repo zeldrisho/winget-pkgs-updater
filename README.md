@@ -10,6 +10,29 @@ Tự động tạo Pull Request lên [microsoft/winget-pkgs](https://github.com/
 - ✅ Hỗ trợ nhiều ứng dụng với cấu hình độc lập
 - ✅ Chạy định kỳ bằng GitHub Actions
 
+## Bắt đầu nhanh
+
+### 1. Fork repository này
+
+### 2. Fork microsoft/winget-pkgs về tài khoản của bạn
+
+### 3. Tạo Personal Access Token với quyền `repo` và `workflow`
+
+### 4. Thêm secrets vào repository:
+- `WINGET_TOKEN`: Personal Access Token của bạn
+- `WINGET_FORK_REPO`: Tên fork của bạn (ví dụ: `username/winget-pkgs`)
+
+### 5. Kích hoạt GitHub Actions
+
+Xem hướng dẫn chi tiết trong [SETUP.md](SETUP.md).
+
+## Tài liệu
+
+- **[SETUP.md](SETUP.md)** - Hướng dẫn cài đặt chi tiết
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Hướng dẫn thêm packages mới
+- **[manifests/README.md](manifests/README.md)** - Cấu trúc manifest
+- **[manifests/EXAMPLES.md](manifests/EXAMPLES.md)** - Ví dụ cấu hình
+
 ## Cài đặt
 
 ### 1. Fork repository này
@@ -38,6 +61,14 @@ Trong repository của bạn, thêm các secrets sau (Settings > Secrets and var
 ## Cấu hình ứng dụng
 
 ### Thêm ứng dụng mới
+
+#### Cách 1: Sử dụng helper script (Khuyến nghị)
+
+```bash
+python scripts/add_package.py
+```
+
+#### Cách 2: Tạo thủ công
 
 Tạo file YAML trong thư mục `manifests/` với tên `Publisher.AppName.yaml`:
 
@@ -110,13 +141,26 @@ Workflow sẽ chạy tự động mỗi 6 giờ để kiểm tra phiên bản m�
 │   └── workflows/
 │       └── update-packages.yml    # GitHub Actions workflow
 ├── manifests/                     # Cấu hình các packages
-│   └── VNGCorp.Zalo.yaml
+│   ├── README.md                  # Tài liệu manifest
+│   ├── EXAMPLES.md                # Ví dụ cấu hình
+│   └── VNGCorp.Zalo.yaml         # Package đầu tiên
 ├── scripts/                       # Scripts Python
 │   ├── check_version.py           # Kiểm tra version mới
 │   ├── generate_manifest.py       # Tạo manifest files
+│   ├── add_package.py             # Helper thêm package
+│   ├── test_manifest.py           # Test manifest generation
 │   └── requirements.txt           # Python dependencies
-└── README.md
+├── SETUP.md                       # Hướng dẫn cài đặt chi tiết
+├── CONTRIBUTING.md                # Hướng dẫn đóng góp
+└── README.md                      # File này
 ```
+
+## Công nghệ sử dụng
+
+- **Python 3.11+**: Scripts xử lý version và manifest
+- **GitHub Actions**: Automation và scheduling
+- **YAML**: Configuration format
+- **WinGet Manifest Schema 1.6.0**: Format manifest chuẩn
 
 ## Tham khảo
 
@@ -129,3 +173,14 @@ Dự án được lấy cảm hứng từ:
 ## License
 
 GPL-3.0 License - Xem file [LICENSE](LICENSE) để biết thêm chi tiết.
+
+## Đóng góp
+
+Contributions are welcome! Xem [CONTRIBUTING.md](CONTRIBUTING.md) để biết cách thêm packages mới.
+
+## Hỗ trợ
+
+Nếu gặp vấn đề:
+1. Kiểm tra [SETUP.md](SETUP.md) và [CONTRIBUTING.md](CONTRIBUTING.md)
+2. Xem workflow logs trong tab Actions
+3. Mở issue với thông tin chi tiết
