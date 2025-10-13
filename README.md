@@ -1,4 +1,4 @@
-# WinGet Package Updater# WinGet Package Updater# WinGet Package Updater# winget-pkgs-updater
+# WinGet Package Updater# WinGet Package Updater# WinGet Package Updater# WinGet Package Updater# winget-pkgs-updater
 
 
 
@@ -10,135 +10,276 @@ Automated tool to check for new package versions and create pull requests to [mi
 
 
 
-- 🔄 **Automatic version detection** using PowerShell scripts or GitHub API
+- 🔄 Automatic version detection (PowerShell scripts or GitHub API)
 
-- 📦 **Manifest updates** - PackageVersion, InstallerUrl, InstallerSha256, SignatureSha256, ReleaseDate
+- 📦 Full manifest updates (Version, URL, SHA256, SignatureSha256, ReleaseDate, ReleaseNotes)
 
-- 🔍 **Smart PR management** - Skip if OPEN/MERGED, allow retry if CLOSED## FeaturesAutomated tool to check for new package versions and create pull requests to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs).Tự động tạo Pull Request lên [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) khi phát hiện phiên bản mới của các ứng dụng.
+- 🔍 Smart PR management (skip OPEN/MERGED, retry CLOSED)## FeaturesAutomated tool to check for new package versions and create pull requests to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs).
+
+- 🎯 MSIX support with automatic signature calculation
+
+- 🤖 GitHub Actions integration (scheduled or manual)
+
+
+
+## Quick Setup- 🔄 **Automatic version detection** using PowerShell scripts or GitHub API
+
+
+
+### 1. Fork Repositories- 📦 **Manifest updates** - PackageVersion, InstallerUrl, InstallerSha256, SignatureSha256, ReleaseDate
+
+
+
+- Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)- 🔍 **Smart PR management** - Skip if OPEN/MERGED, allow retry if CLOSED## FeaturesAutomated tool to check for new package versions and create pull requests to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs).Tự động tạo Pull Request lên [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) khi phát hiện phiên bản mới của các ứng dụng.
+
+- Fork this repository
 
 - ✅ **Universal version replacement** - Replaces version in all manifest fields automatically
 
+### 2. Create GitHub Token
+
 - 🎯 **MSIX support** - Auto-calculates both InstallerSha256 and SignatureSha256
 
-- 🤖 **GitHub Actions integration** - Runs on schedule or manually
+1. Go to [GitHub Settings → Developer settings → Tokens (classic)](https://github.com/settings/tokens)
+
+2. Generate new token with scopes: `repo`, `workflow`- 🤖 **GitHub Actions integration** - Runs on schedule or manually
+
+3. Copy the token
 
 - 🔄 **Automatic version detection** using PowerShell scripts or GitHub API
 
+### 3. Add Secret
+
 ## Quick Start
 
-- 📦 **Manifest updates** - PackageVersion, InstallerUrl, InstallerSha256, ReleaseDate
+In your forked repository:
+
+- Go to Settings → Secrets and variables → Actions- 📦 **Manifest updates** - PackageVersion, InstallerUrl, InstallerSha256, ReleaseDate
+
+- Create secret: `WINGET_PKGS_TOKEN` = your token
 
 ### 1. Fork Repository
 
+### 4. Run Workflow
+
 Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) to your account.- 🔍 **Duplicate PR prevention** - Checks existing PRs before creating new ones## Features## 🚀 Quick Start (3 phút)
 
+- Go to Actions → Update WinGet Packages → Run workflow
 
+
+
+## Adding Packages
 
 ### 2. Setup Token- ✅ **Universal version replacement** - Replaces version in all manifest fields automatically
 
+Create a checkver config in `manifests/` folder. Two methods supported:
+
 Create a GitHub Personal Access Token:
+
+### Method 1: GitHub Releases
 
 1. Go to [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)- 🤖 **GitHub Actions integration** - Runs on schedule or manually
 
-2. Click "Generate new token (classic)"
-
-3. Select scopes: `repo` (all), `workflow`
-
-4. Copy the token
-
-## Quick Start- 🔄 **Automatic version detection** using PowerShell scripts or GitHub API### ❌ Gặp lỗi token?
-
-### 3. Add Secret
-
-In your repository settings:
-
-1. Go to Settings → Secrets and variables → Actions
-
-2. Click "New repository secret"### 1. Fork Repository- 📦 **Manifest updates** - PackageVersion, InstallerUrl, InstallerSha256, ReleaseDate👉 **[QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md)** - Fix trong 3 phút!
-
-3. Name: `WINGET_PKGS_TOKEN`
-
-4. Value: Your token from step 2Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) to your account.
-
-
-
-### 4. Run Workflow- 🔍 **Duplicate PR prevention** - Checks existing PRs before creating new ones
-
-Go to Actions → Update WinGet Packages → Run workflow
-
-### 2. Setup Token
-
-## Adding New Packages
-
-Create a GitHub Personal Access Token with `repo` and `workflow` scopes:- ✅ **Universal version replacement** - Replaces version in all manifest fields automatically### ✅ Setup lần đầu?
-
-### Method 1: Web Scraping
-
-1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
-
-Example: VNGCorp.Zalo (HTTP redirect detection)
-
-2. Click "Generate new token (classic)"- 🤖 **GitHub Actions integration** - Runs on schedule or manually1. **Fork repos:**
-
 ```yaml
 
-packageIdentifier: VNGCorp.Zalo3. Select scopes: `repo` (all), `workflow`
-
-manifestPath: manifests/v/VNGCorp/Zalo
-
-4. Copy the token   - Fork repo này về account của bạn
-
-checkver:
-
-  type: script
-
-  script: |
-
-    $url = "https://res-zaloapp-aka.zdn.vn/win/ZaloSetup.exe"### 3. Add Secret## Quick Start   - Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
-
-    $response = Invoke-WebRequest -Uri $url -MaximumRedirection 0 -ErrorAction SilentlyContinue
-
-    if ($response.Headers.Location) {In your repository settings:
-
-      $redirectUrl = $response.Headers.Location
-
-      if ($redirectUrl -match "ZaloSetup-([\\d\\.]+)\\.exe") {1. Go to Settings → Secrets and variables → Actions
-
-        Write-Output $matches[1]
-
-      }2. Click "New repository secret"
-
-    }
-
-  regex: "([\\d\\.]+)"3. Name: `WINGET_PKGS_TOKEN`### 1. Fork Repository2. **Setup token:**
-
-
-
-installerUrlTemplate: "https://res-zaloapp-aka.zdn.vn/win/ZaloSetup-{version}.exe"4. Value: Your token from step 2
-
-```
-
-Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) to your account.   - 📖 [QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md) - 3 phút
-
-### Method 2: GitHub Releases
-
-### 4. Run Workflow
-
-Example: Seelen.SeelenUI (GitHub API + MSIX)
-
-Go to Actions → Update WinGet Packages → Run workflow   - 📖 [TOKEN_SETUP.md](TOKEN_SETUP.md) - Chi tiết đầy đủ
-
-```yaml
-
-packageIdentifier: Seelen.SeelenUI
+packageIdentifier: Seelen.SeelenUI2. Click "Generate new token (classic)"
 
 manifestPath: manifests/s/Seelen/SeelenUI
 
-## Adding New Packages### 2. Setup Token
+checkver:3. Select scopes: `repo` (all), `workflow`
 
-checkver:
+  type: github
+
+  repo: eythaann/Seelen-UI4. Copy the token
+
+  asset: SeelenUI_${versionShort}_x64.msix
+
+  versionTransform: "s/^(\\d+\\.\\d+\\.\\d+)$/$1.0/"## Quick Start- 🔄 **Automatic version detection** using PowerShell scripts or GitHub API### ❌ Gặp lỗi token?
+
+```
+
+### 3. Add Secret
+
+### Method 2: Web Scraping
+
+In your repository settings:
+
+```yaml
+
+packageIdentifier: VNGCorp.Zalo1. Go to Settings → Secrets and variables → Actions
+
+manifestPath: manifests/v/VNGCorp/Zalo
+
+checkver:2. Click "New repository secret"### 1. Fork Repository- 📦 **Manifest updates** - PackageVersion, InstallerUrl, InstallerSha256, ReleaseDate👉 **[QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md)** - Fix trong 3 phút!
 
   type: script
+
+  script: |3. Name: `WINGET_PKGS_TOKEN`
+
+    $url = "https://res-zaloapp-aka.zdn.vn/win/ZaloSetup.exe"
+
+    $response = Invoke-WebRequest -Uri $url -MaximumRedirection 0 -ErrorAction SilentlyContinue4. Value: Your token from step 2Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) to your account.
+
+    if ($response.Headers.Location -match '/(\d+\.\d+\.\d+)/') {
+
+        Write-Output $matches[1]
+
+    }
+
+installerUrl: "https://res-zaloapp-aka.zdn.vn/win/${version}/ZaloSetup.exe"### 4. Run Workflow- 🔍 **Duplicate PR prevention** - Checks existing PRs before creating new ones
+
+```
+
+Go to Actions → Update WinGet Packages → Run workflow
+
+## Documentation
+
+### 2. Setup Token
+
+- [QUICKSTART.md](QUICKSTART.md) - Detailed setup guide with examples
+
+- [docs/TEST_WORKFLOW.md](docs/TEST_WORKFLOW.md) - Testing guide (checkver + fork commit modes)## Adding New Packages
+
+
+
+## WorkflowsCreate a GitHub Personal Access Token with `repo` and `workflow` scopes:- ✅ **Universal version replacement** - Replaces version in all manifest fields automatically### ✅ Setup lần đầu?
+
+
+
+### Production: `update-packages.yml`### Method 1: Web Scraping
+
+- Runs daily at 02:00 UTC
+
+- Manual trigger available1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+
+- Creates PRs for updates
+
+Example: VNGCorp.Zalo (HTTP redirect detection)
+
+### Testing: `test-manifest-checker.yml`
+
+- Manual trigger only2. Click "Generate new token (classic)"- 🤖 **GitHub Actions integration** - Runs on schedule or manually1. **Fork repos:**
+
+- Two modes:
+
+  - Checkver test (default): Tests version detection only```yaml
+
+  - Fork commit test: Full integration test with branch creation
+
+- Never creates PRspackageIdentifier: VNGCorp.Zalo3. Select scopes: `repo` (all), `workflow`
+
+
+
+## Features DetailmanifestPath: manifests/v/VNGCorp/Zalo
+
+
+
+### Smart PR Management4. Copy the token   - Fork repo này về account của bạn
+
+- Checks existing PRs before creating new ones
+
+- Skips if PR is OPEN or MERGEDcheckver:
+
+- Retries if PR was CLOSED
+
+  type: script
+
+### Universal Version Replacement
+
+- Automatically replaces version in all manifest fields  script: |
+
+- No need to specify which fields to update
+
+    $url = "https://res-zaloapp-aka.zdn.vn/win/ZaloSetup.exe"### 3. Add Secret## Quick Start   - Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
+
+### MSIX Support
+
+- Calculates InstallerSha256 (hash of .msix file)    $response = Invoke-WebRequest -Uri $url -MaximumRedirection 0 -ErrorAction SilentlyContinue
+
+- Extracts and calculates SignatureSha256 (hash of signature)
+
+- Works with both direct download and GitHub releases    if ($response.Headers.Location) {In your repository settings:
+
+
+
+### ReleaseNotes Auto-Fetch      $redirectUrl = $response.Headers.Location
+
+- Fetches release notes from GitHub API
+
+- Updates only locale files (e.g., `*.locale.en-US.yaml`)      if ($redirectUrl -match "ZaloSetup-([\\d\\.]+)\\.exe") {1. Go to Settings → Secrets and variables → Actions
+
+- Uses block scalar format for multi-line notes
+
+        Write-Output $matches[1]
+
+## Project Structure
+
+      }2. Click "New repository secret"
+
+```
+
+.    }
+
+├── .github/workflows/
+
+│   ├── update-packages.yml      # Production workflow  regex: "([\\d\\.]+)"3. Name: `WINGET_PKGS_TOKEN`### 1. Fork Repository2. **Setup token:**
+
+│   └── test-manifest-checker.yml # Test workflow
+
+├── manifests/
+
+│   ├── VNGCorp.Zalo.checkver.yaml
+
+│   └── Seelen.SeelenUI.checkver.yamlinstallerUrlTemplate: "https://res-zaloapp-aka.zdn.vn/win/ZaloSetup-{version}.exe"4. Value: Your token from step 2
+
+├── scripts/
+
+│   ├── check_version.py         # Version detection```
+
+│   ├── update_manifest.py       # Manifest updates & PR creation
+
+│   └── requirements.txtFork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) to your account.   - 📖 [QUICKSTART_TOKEN.md](QUICKSTART_TOKEN.md) - 3 phút
+
+├── docs/
+
+│   └── TEST_WORKFLOW.md### Method 2: GitHub Releases
+
+├── QUICKSTART.md
+
+└── README.md### 4. Run Workflow
+
+```
+
+Example: Seelen.SeelenUI (GitHub API + MSIX)
+
+## Requirements
+
+Go to Actions → Update WinGet Packages → Run workflow   - 📖 [TOKEN_SETUP.md](TOKEN_SETUP.md) - Chi tiết đầy đủ
+
+- Python 3.11+
+
+- PowerShell 7.5+```yaml
+
+- GitHub CLI (`gh`)
+
+- Dependencies: `pip install -r scripts/requirements.txt`packageIdentifier: Seelen.SeelenUI
+
+
+
+## ContributingmanifestPath: manifests/s/Seelen/SeelenUI
+
+
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.## Adding New Packages### 2. Setup Token
+
+
+
+## Licensecheckver:
+
+
+
+MIT License - see [LICENSE](LICENSE) file.  type: script
+
 
   script: |
 
