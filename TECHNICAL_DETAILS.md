@@ -28,14 +28,15 @@ workflow_run_id = os.getenv('GITHUB_RUN_ID', 'unknown')          # Link: 8234567
 **File:** `scripts/update_manifest.py` → `create_pull_request()`
 
 ```python
-# Build PR body with workflow link
+# Build PR body with separate links for repo and workflow run
+repo_url = f"https://github.com/{fork_owner}/{repo_name}"
 workflow_url = f"https://github.com/{fork_owner}/{repo_name}/actions/runs/{workflow_run_id}"
-body = f"Automated by [{fork_owner}/{repo_name}]({workflow_url}) in workflow run #{workflow_run_number}."
+body = f"Automated by [{fork_owner}/{repo_name}]({repo_url}) in workflow run [#{workflow_run_number}]({workflow_url})."
 ```
 
 **Notice:**
-- URL uses `workflow_run_id` (8234567890) - unique identifier
-- Display text uses `workflow_run_number` (#42) - human readable
+- Repo name links to repository homepage (for general info)
+- Run number links to specific workflow execution (for detailed logs)
 
 ### Real Example
 
@@ -50,11 +51,11 @@ https://github.com/zeldrisho/winget-pkgs-updater/actions/runs/8234567890
 
 **PR Body:**
 ```markdown
-Automated by [zeldrisho/winget-pkgs-updater](https://github.com/zeldrisho/winget-pkgs-updater/actions/runs/8234567890) in workflow run #42.
+Automated by [zeldrisho/winget-pkgs-updater](https://github.com/zeldrisho/winget-pkgs-updater) in workflow run [#42](https://github.com/zeldrisho/winget-pkgs-updater/actions/runs/8234567890).
 ```
 
 **Rendered in GitHub:**
-> Automated by [zeldrisho/winget-pkgs-updater](https://github.com/zeldrisho/winget-pkgs-updater/actions/runs/8234567890) in workflow run #42.
+> Automated by [zeldrisho/winget-pkgs-updater](https://github.com/zeldrisho/winget-pkgs-updater) in workflow run [#42](https://github.com/zeldrisho/winget-pkgs-updater/actions/runs/8234567890).
 
 ### Why This Matters
 
@@ -122,7 +123,7 @@ After workflow runs, you can:
    └─ Creates PR with both combined
 
 4. PR created in microsoft/winget-pkgs
-   └─ Body: "...in workflow run #42" (clickable link to run 8234567890)
+   └─ Body: "...in workflow run [#42](url)" (both links clickable)
 ```
 
 ### Example URLs (Real Format)
@@ -162,7 +163,6 @@ https://github.com/.../actions/runs/8234567890
 
 **Example result:**
 ```markdown
-Automated by [zeldrisho/winget-pkgs-updater](https://github.com/.../runs/8234567890) in workflow run #42.
-                                                                                                      ^^
-                                                                                              Human readable!
+Automated by [zeldrisho/winget-pkgs-updater](https://github.com/zeldrisho/winget-pkgs-updater) in workflow run [#42](https://github.com/.../runs/8234567890).
+                                                        ↑ Link to repo                                     ↑ Link to run
 ```

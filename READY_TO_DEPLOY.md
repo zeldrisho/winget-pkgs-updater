@@ -79,8 +79,8 @@ PR Format:                   ✅ PASS (links work)
 1️⃣1️⃣ Create Pull Request
     → To: microsoft/winget-pkgs
     → Title: New version: VNGCorp.Zalo version 25.10.2
-    → Body: Automated by [link] in workflow run #42
-    → (#42 from $GITHUB_RUN_NUMBER, link uses $GITHUB_RUN_ID)
+    → Body: Automated by [repo-link] in workflow run [#42](run-link)
+    → (Both repo and run number are clickable)
     
 ✅ DONE! PR created successfully!
 ```
@@ -95,8 +95,8 @@ PR Format:                   ✅ PASS (links work)
 Title: New version: VNGCorp.Zalo version 25.10.2
 
 Body:
-Automated by [zeldrisho/winget-pkgs-updater](workflow-run-url) 
-in workflow run #42.
+Automated by [zeldrisho/winget-pkgs-updater](https://github.com/zeldrisho/winget-pkgs-updater) 
+in workflow run [#42](https://github.com/zeldrisho/winget-pkgs-updater/actions/runs/8234567890).
 
 Files Changed:
 manifests/v/VNGCorp/Zalo/25.10.2/

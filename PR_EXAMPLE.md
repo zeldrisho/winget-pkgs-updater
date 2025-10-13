@@ -15,12 +15,13 @@ New version: VNGCorp.Zalo version 25.10.2
 
 **Body:**
 ```markdown
-Automated by [zeldrisho/winget-pkgs-updater](https://github.com/zeldrisho/winget-pkgs-updater/actions/runs/8234567890) in workflow run #42.
+Automated by [zeldrisho/winget-pkgs-updater](https://github.com/zeldrisho/winget-pkgs-updater) in workflow run [#42](https://github.com/zeldrisho/winget-pkgs-updater/actions/runs/8234567890).
 ```
 
 **Note:** 
-- Run number `#42` is the sequential workflow run count (automatically pulled from `$GITHUB_RUN_NUMBER`)
-- The link uses the unique run ID `8234567890` (from `$GITHUB_RUN_ID`) to identify the exact workflow execution
+- Repo name links to repository homepage
+- Run number `#42` links to the specific workflow run
+- Both are clickable for easy access
 
 ### Visual Appearance
 

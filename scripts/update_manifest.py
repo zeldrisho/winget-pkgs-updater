@@ -279,9 +279,10 @@ def create_pull_request(
     try:
         title = f"New version: {package_id} version {version}"
         
-        # Build PR body with workflow link
+        # Build PR body with separate links for repo and workflow run
+        repo_url = f"https://github.com/{fork_owner}/{repo_name}"
         workflow_url = f"https://github.com/{fork_owner}/{repo_name}/actions/runs/{workflow_run_id}"
-        body = f"Automated by [{fork_owner}/{repo_name}]({workflow_url}) in workflow run #{workflow_run_number}."
+        body = f"Automated by [{fork_owner}/{repo_name}]({repo_url}) in workflow run [#{workflow_run_number}]({workflow_url})."
         
         # Use gh CLI to create PR
         subprocess.run(
