@@ -13,6 +13,7 @@ import hashlib
 import requests
 import tempfile
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -87,6 +88,14 @@ def update_manifest_content(content: str, version: str, sha256: Optional[str] = 
             f'InstallerSha256: {sha256}',
             content
         )
+    
+    # Update ReleaseDate to today (ISO 8601 format: YYYY-MM-DD)
+    today = datetime.now().strftime('%Y-%m-%d')
+    content = re.sub(
+        r'ReleaseDate:\s*[\d-]+',
+        f'ReleaseDate: {today}',
+        content
+    )
     
     return content
 
