@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write  # For creating PRs via gh CLI
 
 jobs:
   check-versions:
@@ -152,9 +153,12 @@ jobs:
         run: |
           python scripts/update_manifest.py version_info.json
         env:
-          GITHUB_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
-          GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
+          # Use WINGET_PKGS_TOKEN if available, fallback to GITHUB_TOKEN
+          # Note: GITHUB_TOKEN only works for PRs in same repo, use PAT for forks
+          GITHUB_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_RUN_ID: ${{ github.run_id }}
       
       - name: Upload artifacts

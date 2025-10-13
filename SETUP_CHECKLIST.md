@@ -8,21 +8,29 @@
 - [ ] Fork về account `zeldrisho`
 
 ### ✅ 2. Tạo Personal Access Token (PAT)
+
+**Chi tiết:** Xem [TOKEN_SETUP.md](TOKEN_SETUP.md)
+
 - [ ] Vào https://github.com/settings/tokens
 - [ ] Click **Generate new token** → **Classic**
 - [ ] Đặt tên: `winget-pkgs-updater`
+- [ ] Expiration: **No expiration** hoặc 1 year
 - [ ] Chọn permissions:
-  - [x] `repo` (Full control of private repositories)
-  - [x] `workflow` (Update GitHub Action workflows)
+  - [x] `repo` (Full control - để clone/push fork)
+  - [x] `workflow` (Update workflows)
 - [ ] Click **Generate token**
-- [ ] **Copy token** (chỉ hiện 1 lần!)
+- [ ] **⚠️ COPY TOKEN** (chỉ hiện 1 lần, không recover được!)
 
 ### ✅ 3. Add Secret vào repo này
+
+**Quan trọng:** Không có secret này workflow sẽ fail!
+
 - [ ] Vào https://github.com/zeldrisho/winget-pkgs-updater/settings/secrets/actions
 - [ ] Click **New repository secret**
-- [ ] Name: `WINGET_PKGS_TOKEN`
+- [ ] Name: `WINGET_PKGS_TOKEN` (phải đúng tên này!)
 - [ ] Value: Paste token vừa copy
 - [ ] Click **Add secret**
+- [ ] Verify: Secret sẽ hiện trong list với dấu `***`
 
 ### ✅ 4. Verify setup
 - [ ] Vào **Actions** tab trong repo này
