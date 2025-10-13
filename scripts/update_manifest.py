@@ -18,6 +18,49 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 
+def check_existing_pr(package_id: str, version: str) -> bool:
+    """
+    Check if PR already exists for this package version.
+    Returns True if PR exists (should skip), False if no PR found (should create).
+    """
+    try:
+        title = f"New version: {package_id} version {version}"
+        print(f"🔍 Checking for existing PRs: {title}")
+        
+        result = subprocess.run(
+            [
+                'gh', 'pr', 'list',
+                '--repo', 'microsoft/winget-pkgs',
+                '--search', f'"{title}" in:title',
+                '--state', 'all',  # Check open, merged, and closed PRs
+                '--json', 'number,title,state',
+                '--limit', '10'
+            ],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        if result.stdout.strip():
+            prs = json.loads(result.stdout)
+            if prs:
+                for pr in prs:
+                    if title.lower() in pr['title'].lower():
+                        state_emoji = "🟢" if pr['state'] == "OPEN" else "🟣" if pr['state'] == "MERGED" else "⚪"
+                        print(f"⏭️  {state_emoji} PR already exists: #{pr['number']} ({pr['state']})")
+                        print(f"   Title: {pr['title']}")
+                        print(f"   URL: https://github.com/microsoft/winget-pkgs/pull/{pr['number']}")
+                        return True  # Skip - PR exists
+        
+        print("✅ No existing PR found - will create new one")
+        return False  # No PR found - should create
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: Could not check existing PRs: {e}")
+        print("Continuing anyway...")
+        return False  # Continue on error
+
+
 def download_file(url: str, filepath: str) -> bool:
     """Download file from URL to filepath"""
     try:
@@ -296,32 +339,7 @@ def create_pull_request(
     """Create pull request using GitHub CLI"""
     try:
         title = f"New version: {package_id} version {version}"
-        
-        # Check if PR already exists (open or merged)
-        print(f"Checking for existing PRs with title: {title}")
-        check_result = subprocess.run(
-            [
-                'gh', 'pr', 'list',
-                '--repo', 'microsoft/winget-pkgs',
-                '--search', f'"{title}" in:title',
-                '--state', 'all',  # Check both open and closed (merged) PRs
-                '--json', 'title,state,number',
-                '--limit', '5'
-            ],
-            capture_output=True,
-            text=True
-        )
-        
-        if check_result.returncode == 0 and check_result.stdout.strip():
-            import json
-            existing_prs = json.loads(check_result.stdout)
-            if existing_prs:
-                for pr in existing_prs:
-                    if pr['title'] == title:
-                        print(f"⏭️  PR already exists: #{pr['number']} ({pr['state']})")
-                        print(f"   Title: {pr['title']}")
-                        print(f"   Skipping PR creation to avoid duplicates")
-                        return True  # Return success - no need to create duplicate
+        print(f"Creating PR: {title}")
         
         # Build PR body with separate links for repo and workflow run
         repo_url = f"https://github.com/{fork_owner}/{repo_name}"
@@ -367,6 +385,11 @@ def main():
     manifest_path = checkver_config.get('manifestPath', '')
     
     print(f"Updating {package_id} to version {version}")
+    
+    # Check if PR already exists BEFORE doing any work
+    if check_existing_pr(package_id, version):
+        print("⏭️  Skipping update - PR already exists")
+        sys.exit(0)  # Exit successfully - no work needed
     
     # Get environment variables
     fork_owner = os.getenv('GITHUB_REPOSITORY_OWNER', 'zeldrisho')
