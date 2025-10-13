@@ -110,7 +110,9 @@ gh auth login                            # GitHub CLI for PR operations
 
 ## Environment Requirements
 
-- **Secrets:** `WINGET_PKGS_TOKEN` - GitHub token with `repo` + `workflow` scopes
+- **Secrets:** 
+  - `WINGET_PKGS_TOKEN` - GitHub token with `repo` + `workflow` scopes (required)
+  - `WINGET_FORK_REPO` - Fork repository in format `username/winget-pkgs` (optional, defaults to `{GITHUB_REPOSITORY_OWNER}/winget-pkgs`)
 - **Runtime:** Ubuntu 24.04, Python 3.11+, PowerShell 7.5+, GitHub CLI
 - **Fork:** User must have forked microsoft/winget-pkgs
 
@@ -126,4 +128,5 @@ gh auth login                            # GitHub CLI for PR operations
 1. **PowerShell script returns empty** - Check timeout (30s limit), network issues, API rate limits
 2. **SignatureSha256 missing** - MSIX files require signature extraction via PowerShell
 3. **Version already exists** - Workflow checks microsoft/winget-pkgs before creating PR
-4. **Fork not found** - Verify WINGET_PKGS_TOKEN has access to user's fork
+4. **Fork not found** - Verify WINGET_PKGS_TOKEN has access to user's fork and WINGET_FORK_REPO is correct format (username/winget-pkgs)
+5. **Git fetch upstream fails** - Ensure fork exists and token has proper permissions

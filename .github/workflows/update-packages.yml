@@ -26,23 +26,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install PowerShell
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https software-properties-common
-          wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
-          sudo dpkg -i packages-microsoft-prod.deb
-          sudo apt-get update
-          sudo apt-get install -y powershell
-      
-      - name: Install Python dependencies
-        run: |
-          pip install -r scripts/requirements.txt
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
       
       - name: Find checkver files
         id: find-checkver
@@ -115,23 +100,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install PowerShell
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget apt-transport-https software-properties-common
-          wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
-          sudo dpkg -i packages-microsoft-prod.deb
-          sudo apt-get update
-          sudo apt-get install -y powershell
-      
-      - name: Install Python dependencies
-        run: |
-          pip install -r scripts/requirements.txt
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
       
       - name: Set up Git
         run: |
@@ -153,10 +123,11 @@ jobs:
         run: |
           python scripts/update_manifest.py "${{ matrix.package }}.checkver.yaml" version_info.json
         env:
-          # Use WINGET_PKGS_TOKEN if available, fallback to GITHUB_TOKEN
-          # Note: GITHUB_TOKEN only works for PRs in same repo, use PAT for forks
+          # Required: Personal Access Token with repo + workflow scopes
+          # Optional: Specify fork repository (default: {GITHUB_REPOSITORY_OWNER}/winget-pkgs)
           GITHUB_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
           GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
+          WINGET_FORK_REPO: ${{ secrets.WINGET_FORK_REPO }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_RUN_ID: ${{ github.run_id }}

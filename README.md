@@ -23,12 +23,13 @@ Automated tool to check for new package versions and create pull requests to [mi
 2. Generate new token with scopes: `repo`, `workflow`
 3. Copy the token
 
-### 3. Add Secret
+### 3. Add Secrets
 
 In your forked repository:
 
 - Go to Settings → Secrets and variables → Actions
-- Create secret: `WINGET_PKGS_TOKEN` = your token
+- Create secret: `WINGET_PKGS_TOKEN` = your token (required)
+- Create secret: `WINGET_FORK_REPO` = your fork repository in format `username/winget-pkgs` (optional, defaults to `{GITHUB_REPOSITORY_OWNER}/winget-pkgs`)
 
 ### 4. Run Workflow
 

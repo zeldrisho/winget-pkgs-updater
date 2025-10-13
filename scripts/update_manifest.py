@@ -263,12 +263,12 @@ def update_manifest_content(
     return content
 
 
-def clone_winget_pkgs(fork_owner: str, temp_dir: str, token: str) -> bool:
+def clone_winget_pkgs(fork_repo: str, temp_dir: str, token: str) -> bool:
     """Clone forked winget-pkgs repository and setup upstream"""
     try:
         # Use token in URL for authentication
-        repo_url = f"https://{token}@github.com/{fork_owner}/winget-pkgs.git"
-        print(f"Cloning https://github.com/{fork_owner}/winget-pkgs.git...")
+        repo_url = f"https://{token}@github.com/{fork_repo}.git"
+        print(f"Cloning https://github.com/{fork_repo}.git...")
         
         subprocess.run(
             ['git', 'clone', '--depth', '1', repo_url, temp_dir],
@@ -563,7 +563,11 @@ def main():
         sys.exit(0)  # Exit successfully - no work needed
     
     # Get environment variables
-    fork_owner = os.getenv('GITHUB_REPOSITORY_OWNER', 'zeldrisho')
+    fork_repo = os.getenv('WINGET_FORK_REPO')
+    if not fork_repo:
+        fork_owner = os.getenv('GITHUB_REPOSITORY_OWNER', 'zeldrisho')
+        fork_repo = f"{fork_owner}/winget-pkgs"
+    
     workflow_run_number = os.getenv('GITHUB_RUN_NUMBER', 'unknown')
     workflow_run_id = os.getenv('GITHUB_RUN_ID', 'unknown')
     repo_name = os.getenv('GITHUB_REPOSITORY', 'zeldrisho/winget-pkgs-updater').split('/')[-1]
@@ -572,6 +576,9 @@ def main():
     if not token:
         print("Error: GITHUB_TOKEN or GH_TOKEN environment variable not set", file=sys.stderr)
         sys.exit(1)
+    
+    # Extract fork_owner from fork_repo for PR creation
+    fork_owner = fork_repo.split('/')[0]
     
     # Use provided fork path or create temporary directory
     if args.fork_path:
@@ -591,7 +598,7 @@ def main():
             repo_dir = os.path.join(temp_dir, 'winget-pkgs')
             
             # Clone fork
-            if not clone_winget_pkgs(fork_owner, repo_dir, token):
+            if not clone_winget_pkgs(fork_repo, repo_dir, token):
                 print("Failed to clone repository")
                 sys.exit(1)
             
