@@ -19,7 +19,7 @@ jobs:
     name: Check for updates
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      matrix: ${{ steps.check-updates.outputs.matrix }}
     
     steps:
       - name: Checkout repository
@@ -88,17 +88,17 @@ jobs:
             fi
           done <<< "${{ steps.find-checkver.outputs.files }}"
           
-          echo "matrix=$updates" >> $GITHUB_OUTPUT
+          # Use EOF delimiter for multiline JSON output
+          echo "matrix<<EOF" >> $GITHUB_OUTPUT
+          echo "$updates" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ github.token }}
       
-      - name: Set matrix
-        id: set-matrix
+      - name: Display found updates
         run: |
-          matrix='${{ steps.check-updates.outputs.matrix }}'
-          echo "matrix=$matrix" >> $GITHUB_OUTPUT
           echo "Found updates:"
-          echo "$matrix" | jq .
+          echo '${{ steps.check-updates.outputs.matrix }}' | jq .
 
   update-manifest:
     name: Update ${{ matrix.package }} to ${{ matrix.version }}
