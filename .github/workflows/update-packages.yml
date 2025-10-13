@@ -4,6 +4,12 @@ on:
   schedule:
     # Run every 6 hours
     - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package name (leave empty for all packages)'
+        required: false
+        type: string
 
 permissions:
   contents: read

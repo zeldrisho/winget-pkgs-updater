@@ -6,6 +6,12 @@ on:
       - 'manifests/**.yaml'
       - 'scripts/check_version.py'
       - 'scripts/update_manifest.py'
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package name to test (leave empty for all)'
+        required: false
+        type: string
 
 jobs:
   test-checkver:

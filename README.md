@@ -42,7 +42,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guide on adding new packages
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) - How to add packages
 - [manifests/README.md](manifests/README.md) - Checkver configuration
-- [docs/TEST_WORKFLOW.md](docs/TEST_WORKFLOW.md) - Testing workflow
 
 ## How It Works
 
