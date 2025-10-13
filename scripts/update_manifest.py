@@ -290,6 +290,23 @@ def clone_winget_pkgs(fork_repo: str, temp_dir: str, token: str) -> bool:
         
         # Add upstream remote for microsoft/winget-pkgs
         print("Adding upstream remote (microsoft/winget-pkgs)...")
+        # Check if upstream remote already exists
+        check_remote = subprocess.run(
+            ['git', 'remote', 'get-url', 'upstream'],
+            cwd=temp_dir,
+            capture_output=True,
+            text=True
+        )
+        
+        if check_remote.returncode == 0:
+            print("  ⚠️  Upstream remote already exists, removing and re-adding...")
+            subprocess.run(
+                ['git', 'remote', 'remove', 'upstream'],
+                cwd=temp_dir,
+                check=True,
+                capture_output=True
+            )
+        
         subprocess.run(
             ['git', 'remote', 'add', 'upstream', 'https://github.com/microsoft/winget-pkgs.git'],
             cwd=temp_dir,
