@@ -88,6 +88,54 @@ def calculate_sha256(filepath: str) -> str:
     return sha256_hash.hexdigest().upper()
 
 
+def calculate_msix_signature_sha256(msix_path: str) -> Optional[str]:
+    """
+    Calculate SHA256 of MSIX signature using PowerShell.
+    Returns None if calculation fails.
+    """
+    try:
+        ps_script = f'''
+$packagePath = "{msix_path}"
+$sigPath = [System.IO.Path]::GetTempFileName()
+$appxFile = Get-AppxPackage -Path $packagePath -PackageTypeFilter Bundle,Main,Resource | Select-Object -First 1
+if ($appxFile) {{
+    $signHash = (Get-AuthenticodeSignature $packagePath).SignerCertificate.GetCertHashString("SHA256")
+    Write-Output $signHash
+}} else {{
+    # Alternative method: Extract signature from MSIX
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
+    $sigFile = $zip.Entries | Where-Object {{ $_.FullName -eq "AppxSignature.p7x" }}
+    if ($sigFile) {{
+        [System.IO.Compression.ZipFileExtensions]::ExtractToFile($sigFile, $sigPath, $true)
+        $sigHash = (Get-FileHash -Path $sigPath -Algorithm SHA256).Hash
+        Write-Output $sigHash
+    }}
+    $zip.Dispose()
+    Remove-Item $sigPath -ErrorAction SilentlyContinue
+}}
+'''
+        
+        result = subprocess.run(
+            ['pwsh', '-Command', ps_script],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode == 0 and result.stdout.strip():
+            sig_hash = result.stdout.strip().upper()
+            print(f"Calculated SignatureSha256: {sig_hash}")
+            return sig_hash
+        else:
+            print(f"Warning: Could not calculate SignatureSha256: {result.stderr}")
+            return None
+            
+    except Exception as e:
+        print(f"Warning: Error calculating SignatureSha256: {e}")
+        return None
+
+
 def fetch_github_file(repo: str, path: str, branch: str = "master") -> Optional[str]:
     """Fetch file content from GitHub"""
     url = f"https://raw.githubusercontent.com/{repo}/{branch}/{path}"
@@ -101,14 +149,14 @@ def fetch_github_file(repo: str, path: str, branch: str = "master") -> Optional[
         return None
 
 
-def update_manifest_content(content: str, version: str, sha256: Optional[str] = None) -> str:
+def update_manifest_content(content: str, version: str, sha256: Optional[str] = None, signature_sha256: Optional[str] = None) -> str:
     """
     Update version and SHA256 in manifest content.
     
     Strategy:
     1. Extract old version from PackageVersion field
     2. Replace ALL occurrences of old version with new version
-    3. Update SHA256 if provided
+    3. Update SHA256 hashes if provided
     4. Update ReleaseDate to today
     """
     
@@ -131,14 +179,23 @@ def update_manifest_content(content: str, version: str, sha256: Optional[str] = 
         content = content.replace(old_version, version)
         print(f"  ✅ Replaced all occurrences with {version}")
     
-    # Update SHA256 if provided
+    # Update InstallerSha256 if provided
     if sha256:
         content = re.sub(
             r'InstallerSha256:\s*[A-Fa-f0-9]+',
             f'InstallerSha256: {sha256}',
             content
         )
-        print(f"  ✅ Updated SHA256")
+        print(f"  ✅ Updated InstallerSha256")
+    
+    # Update SignatureSha256 if provided (for MSIX packages)
+    if signature_sha256:
+        content = re.sub(
+            r'SignatureSha256:\s*[A-Fa-f0-9]+',
+            f'SignatureSha256: {signature_sha256}',
+            content
+        )
+        print(f"  ✅ Updated SignatureSha256")
     
     # Update ReleaseDate to today (ISO 8601 format: YYYY-MM-DD)
     today = datetime.now().strftime('%Y-%m-%d')
@@ -208,15 +265,26 @@ def update_manifests(
 ) -> bool:
     """Update manifest files in the cloned repository"""
     try:
+        # Determine file extension from URL
+        file_ext = '.msix' if installer_url.lower().endswith('.msix') else '.exe'
+        is_msix = file_ext == '.msix'
+        
         # Download installer to calculate SHA256
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.exe') as tmp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
             tmp_path = tmp_file.name
         
         if not download_file(installer_url, tmp_path):
             return False
         
         sha256 = calculate_sha256(tmp_path)
-        print(f"Calculated SHA256: {sha256}")
+        print(f"Calculated InstallerSha256: {sha256}")
+        
+        # Calculate SignatureSha256 for MSIX packages
+        signature_sha256 = None
+        if is_msix:
+            print("MSIX package detected, calculating SignatureSha256...")
+            signature_sha256 = calculate_msix_signature_sha256(tmp_path)
+        
         os.unlink(tmp_path)
         
         # Update manifest files
@@ -257,8 +325,8 @@ def update_manifests(
                 with open(src_file, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
-                # Update content
-                updated_content = update_manifest_content(content, version, sha256)
+                # Update content with both hashes
+                updated_content = update_manifest_content(content, version, sha256, signature_sha256)
                 
                 with open(dst_file, 'w', encoding='utf-8') as f:
                     f.write(updated_content)
