@@ -195,9 +195,19 @@ def update_manifest_content(
         count = content.count(old_version)
         print(f"  Found {count} occurrences of version {old_version}")
         
-        # Replace all occurrences
+        # Replace all occurrences of full version
         content = content.replace(old_version, version)
         print(f"  ✅ Replaced all occurrences with {version}")
+        
+        # Also replace short version (e.g., 2.3.12 -> 2.4.4 for URL tags)
+        # Only if version ends with .0
+        if old_version.endswith('.0') and version.endswith('.0'):
+            old_short = old_version[:-2]  # Remove trailing .0
+            new_short = version[:-2]      # Remove trailing .0
+            short_count = content.count(old_short)
+            if short_count > 0:
+                content = content.replace(old_short, new_short)
+                print(f"  ✅ Also replaced {short_count} occurrences of short version {old_short} with {new_short}")
     
     # Update InstallerSha256 if provided
     if sha256:
