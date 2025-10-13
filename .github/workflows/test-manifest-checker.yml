@@ -188,10 +188,9 @@ jobs:
           
           # Commit changes
           git add .
-          git commit -m "test: Update ${package_id} to ${new_version}
-
-This is an automated test commit from the test-manifest-checker workflow.
-Not intended for actual PR submission."
+          git commit -m "test: Update ${package_id} to ${new_version}" \
+            -m "This is an automated test commit from the test-manifest-checker workflow." \
+            -m "Not intended for actual PR submission."
           
           # Push to fork
           echo "Pushing to fork..."
