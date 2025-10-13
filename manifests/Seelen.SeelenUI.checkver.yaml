@@ -1,0 +1,18 @@
+packageIdentifier: Seelen.SeelenUI
+manifestPath: manifests/s/Seelen/SeelenUI
+
+checkver:
+  type: script
+  script: |
+    # Get latest stable release from GitHub
+    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/eythaann/Seelen-UI/releases/latest" -UserAgent "winget-pkgs-updater"
+    if ($response.tag_name) {
+      # Remove 'v' prefix if present
+      $version = $response.tag_name -replace '^v', ''
+      Write-Output $version
+    }
+  regex: "([\\d\\.]+)"
+
+# Template for GitHub releases-based installer URL
+# Will be used to construct download URL and calculate SHA256
+installerUrlTemplate: "https://github.com/eythaann/Seelen-UI/releases/download/v{version}/Seelen.UI_{version}_x64-setup.exe"

@@ -59,27 +59,34 @@ def fetch_github_file(repo: str, path: str, branch: str = "master") -> Optional[
 
 
 def update_manifest_content(content: str, version: str, sha256: Optional[str] = None) -> str:
-    """Update version and SHA256 in manifest content"""
-    # Update PackageVersion
-    content = re.sub(
-        r'PackageVersion:\s*[\d\.]+',
-        f'PackageVersion: {version}',
-        content
-    )
+    """
+    Update version and SHA256 in manifest content.
     
-    # Update version in DisplayName if present
-    content = re.sub(
-        r'DisplayName:\s*Zalo\s+[\d\.]+',
-        f'DisplayName: Zalo {version}',
-        content
-    )
+    Strategy:
+    1. Extract old version from PackageVersion field
+    2. Replace ALL occurrences of old version with new version
+    3. Update SHA256 if provided
+    4. Update ReleaseDate to today
+    """
     
-    # Update InstallerUrl with new version
-    content = re.sub(
-        r'(InstallerUrl:.*ZaloSetup-)[\d\.]+(\.exe)',
-        rf'\g<1>{version}\g<2>',
-        content
-    )
+    # Extract old version from PackageVersion field
+    old_version = None
+    version_match = re.search(r'PackageVersion:\s*([\d\.]+)', content)
+    if version_match:
+        old_version = version_match.group(1)
+        print(f"  Detected old version: {old_version}")
+        print(f"  Updating to new version: {version}")
+    
+    # Replace ALL occurrences of old version with new version
+    # This handles: PackageVersion, InstallerUrl, DisplayName, etc.
+    if old_version and old_version != version:
+        # Count occurrences before replacement
+        count = content.count(old_version)
+        print(f"  Found {count} occurrences of version {old_version}")
+        
+        # Replace all occurrences
+        content = content.replace(old_version, version)
+        print(f"  ✅ Replaced all occurrences with {version}")
     
     # Update SHA256 if provided
     if sha256:
@@ -88,6 +95,7 @@ def update_manifest_content(content: str, version: str, sha256: Optional[str] = 
             f'InstallerSha256: {sha256}',
             content
         )
+        print(f"  ✅ Updated SHA256")
     
     # Update ReleaseDate to today (ISO 8601 format: YYYY-MM-DD)
     today = datetime.now().strftime('%Y-%m-%d')
@@ -96,6 +104,7 @@ def update_manifest_content(content: str, version: str, sha256: Optional[str] = 
         f'ReleaseDate: {today}',
         content
     )
+    print(f"  ✅ Updated ReleaseDate to {today}")
     
     return content
 

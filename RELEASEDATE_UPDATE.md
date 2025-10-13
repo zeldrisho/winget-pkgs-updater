@@ -62,7 +62,7 @@ PackageIdentifier: VNGCorp.Zalo
 PackageVersion: 25.10.2
 InstallerUrl: https://res-zaloapp-aka.zdn.vn/win/ZaloSetup-25.10.2.exe
 InstallerSha256: DEF456...
-ReleaseDate: 2025-10-13  # ← Automatically set to today
+ReleaseDate: 2025-10-13
 ```
 
 ## Why This Matters
