@@ -1,62 +1,105 @@
-# Example Package Configurations
+# WinGet Package Checkver Configurations
 
-This directory contains YAML configuration files for each package to monitor.
+This directory contains checkver configuration files that tell the updater how to check for new package versions.
 
-## Configuration Format
+## How It Works
 
-Each package should have its own YAML file named `Publisher.AppName.yaml`.
+1. **Checkver files** in this repo define how to detect new versions
+2. **GitHub Actions** periodically checks for updates
+3. **When found**, it:
+   - Forks/clones `microsoft/winget-pkgs`
+   - Fetches the latest manifest
+   - Updates version and SHA256
+   - Creates a PR to `microsoft/winget-pkgs`
 
-### Example: VNGCorp.Zalo.yaml
+## File Structure
 
-```yaml
-packageIdentifier: VNGCorp.Zalo
-updateMethod: web
-checkUrl: https://www.zalo.me/download
-installerUrlPattern: https://res-zalo-pc-stc.zadn.vn/win/Zalo-{version}-win64.msi
-architecture: x64
-installerType: msi
-productCode: "{PRODUCTCODE}"
-releaseNotesUrl: https://www.zalo.me
-publisher: VNG Corporation
-packageName: Zalo
-license: Proprietary
-shortDescription: Zalo - Nhắn Gửi Yêu Thương
-description: |
-  Zalo PC - Kết nối với những người thân yêu của bạn.
-tags:
-  - messenger
-  - chat
-  - communication
-  - video-call
+```
+manifests/
+├── README.md
+├── Publisher.Package.checkver.yaml
+└── VNGCorp.Zalo.checkver.yaml
 ```
 
-## Fields Description
+Each checkver file contains only the configuration needed to check for updates.
 
-- **packageIdentifier**: Unique identifier in format `Publisher.AppName`
-- **updateMethod**: Method to check for updates (`web` or `api`)
-- **checkUrl**: URL to check for version information
-- **installerUrlPattern**: URL pattern for installer download (use `{version}` placeholder)
-- **architecture**: System architecture (`x64`, `x86`, `arm64`)
-- **installerType**: Type of installer (`msi`, `exe`, `msix`, `appx`)
-- **productCode**: Product code for MSI installers (use `{PRODUCTCODE}` if unknown)
-- **releaseNotesUrl**: URL to release notes (optional)
-- **publisher**: Publisher/company name
-- **packageName**: Display name of the package
-- **license**: License type (e.g., `Proprietary`, `MIT`, `GPL-3.0`)
-- **shortDescription**: Brief description
-- **description**: Detailed description (optional)
-- **tags**: List of relevant tags (optional)
+## Checkver Configuration Format
+
+### Example: VNGCorp.Zalo.checkver.yaml
+
+```yaml
+# Package identifier
+packageIdentifier: VNGCorp.Zalo
+
+# Path in microsoft/winget-pkgs repository
+manifestPath: manifests/v/VNGCorp/Zalo
+
+# Version checking method
+checkver:
+  type: script  # or 'web' for simple scraping
+  script: |
+    # PowerShell script to get download URL
+    try {
+      $response = Invoke-WebRequest -Uri "https://zalo.me/download/zalo-pc" -MaximumRedirection 0
+      if ($response.Headers.Location) {
+        Write-Output $response.Headers.Location.OriginalString
+      }
+    } catch {
+      if ($_.Exception.Response.Headers.Location) {
+        Write-Output $_.Exception.Response.Headers.Location.OriginalString
+      }
+    }
+  regex: ZaloSetup-([\d\.]+)\.exe  # Extract version from URL
+
+# Installer URL template for downloading and calculating SHA256
+installerUrlTemplate: https://res-zaloapp-aka.zdn.vn/win/ZaloSetup-{version}.exe
+```
+
+### Alternative: Simple Web Scraping
+
+```yaml
+packageIdentifier: Publisher.Package
+manifestPath: manifests/p/Publisher/Package
+
+checkver:
+  type: web
+  checkUrl: https://example.com/download
+  regex: Package-v?([\d\.]+)\.exe
+
+installerUrlTemplate: https://example.com/downloads/Package-{version}.exe
+```
 
 ## Adding a New Package
 
-1. Create a new YAML file in this directory using the format above
-2. Add the file path to the workflow matrix in `.github/workflows/update-packages.yml`
-3. Test the configuration:
+1. Create a new checkver file: `manifests/Publisher.Package.checkver.yaml`
+2. Define the package identifier and manifest path
+3. Configure the version checking method
+4. Test locally:
    ```bash
-   python scripts/check_version.py manifests/YourPublisher.YourApp.yaml
+   python scripts/check_version.py manifests/Publisher.Package.checkver.yaml
    ```
+5. Add to GitHub Actions workflow matrix
 
-Or use the helper script:
-```bash
-python scripts/add_package.py
-```
+## PR Format
+
+When a new version is detected, the automation will:
+
+1. Fork `microsoft/winget-pkgs` (if not already forked)
+2. Create a new branch: `PackageIdentifier-version`
+3. Update manifest files with new version and SHA256
+4. Create PR with:
+   - **Title**: `New version: VNGCorp.Zalo version 25.8.3`
+   - **Body**: `Automated by zeldrisho/winget-pkgs-updater in workflow run #123.`
+
+## Benefits of This Approach
+
+✅ **Minimal storage** - Only checkver configs in this repo
+✅ **Always up-to-date** - Fetches latest manifest from microsoft/winget-pkgs
+✅ **Automatic SHA256** - Downloads installer and calculates hash
+✅ **Clean PRs** - Creates proper branches and descriptive PR messages
+✅ **Scalable** - Easy to add more packages
+
+## References
+
+- [Microsoft WinGet Packages](https://github.com/microsoft/winget-pkgs)
+- [WinGet Manifest Schema](https://github.com/microsoft/winget-cli/tree/master/schemas)

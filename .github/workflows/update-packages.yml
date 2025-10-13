@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       package:
-        description: 'Package to check (leave empty for all)'
+        description: 'Package to update (leave empty for all)'
         required: false
         type: string
 
@@ -15,13 +15,11 @@ permissions:
   contents: read
 
 jobs:
-  check-updates:
+  check-versions:
+    name: Check for updates
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        manifest:
-          - manifests/VNGCorp.Zalo.yaml
-      fail-fast: false
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     
     steps:
       - name: Checkout repository
@@ -32,85 +30,155 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Install dependencies
+      - name: Install PowerShell
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https software-properties-common
+          wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
+      
+      - name: Install Python dependencies
         run: |
           pip install -r scripts/requirements.txt
       
-      - name: Check for version updates
-        id: check
+      - name: Find checkver files
+        id: find-checkver
         run: |
-          python scripts/check_version.py ${{ matrix.manifest }}
+          if [ -n "${{ github.event.inputs.package }}" ]; then
+            files=$(find manifests -name "${{ github.event.inputs.package }}.checkver.yaml")
+          else
+            files=$(find manifests -name "*.checkver.yaml")
+          fi
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$files" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
       
-      - name: Generate manifests
-        if: steps.check.outputs.has_update == 'true'
-        id: generate
+      - name: Check for updates
+        id: check-updates
         run: |
-          python scripts/generate_manifest.py \
-            ${{ matrix.manifest }} \
-            ${{ steps.check.outputs.version }} \
-            ${{ steps.check.outputs.installer_url }} \
-            /tmp/winget-manifests
+          updates='[]'
+          while IFS= read -r file; do
+            if [ -n "$file" ]; then
+              echo "Checking $file..."
+              if python scripts/check_version.py "$file" "version_info.json"; then
+                if [ -f "version_info.json" ]; then
+                  package_id=$(jq -r '.packageIdentifier' version_info.json)
+                  version=$(jq -r '.version' version_info.json)
+                  
+                  # Check if this version already exists in microsoft/winget-pkgs
+                  manifest_path=$(jq -r '.checkver_config.manifestPath' version_info.json)
+                  if gh api "/repos/microsoft/winget-pkgs/contents/$manifest_path/$version" 2>/dev/null; then
+                    echo "Version $version already exists in microsoft/winget-pkgs, skipping"
+                  else
+                    echo "New version found: $package_id $version"
+                    updates=$(echo "$updates" | jq --arg file "$file" --arg pkg "$package_id" --arg ver "$version" '. + [{checkver: $file, package: $pkg, version: $ver}]')
+                  fi
+                  rm -f version_info.json
+                fi
+              fi
+            fi
+          done <<< "${{ steps.find-checkver.outputs.files }}"
+          
+          echo "matrix=$updates" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
       
-      - name: Checkout winget-pkgs fork
-        if: steps.check.outputs.has_update == 'true'
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          matrix='${{ steps.check-updates.outputs.matrix }}'
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+          echo "Found updates:"
+          echo "$matrix" | jq .
+
+  update-manifest:
+    name: Update ${{ matrix.package }} to ${{ matrix.version }}
+    needs: check-versions
+    if: needs.check-versions.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.check-versions.outputs.matrix) }}
+    
+    steps:
+      - name: Checkout repository
         uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          repository: ${{ secrets.WINGET_FORK_REPO }}
-          token: ${{ secrets.WINGET_TOKEN }}
-          path: winget-pkgs
-          fetch-depth: 1
+          python-version: '3.11'
       
-      - name: Create branch and commit manifests
-        if: steps.check.outputs.has_update == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.WINGET_TOKEN }}
+      - name: Install PowerShell
         run: |
-          cd winget-pkgs
-          
-          # Configure git with user's info
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
-          
-          # Create new branch
-          BRANCH_NAME="${{ steps.check.outputs.package_id }}-${{ steps.check.outputs.version }}"
-          git checkout -b "$BRANCH_NAME"
-          
-          # Copy manifests
-          cp -r /tmp/winget-manifests/* manifests/
-          
-          # Add and commit
-          git add manifests/
-          git commit -m "Update ${{ steps.check.outputs.package_id }} to version ${{ steps.check.outputs.version }}"
-          
-          # Push to fork
-          git push origin "$BRANCH_NAME"
-          
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-        id: branch
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https software-properties-common
+          wget -q "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo apt-get install -y powershell
       
-      - name: Create Pull Request to microsoft/winget-pkgs
-        if: steps.check.outputs.has_update == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.WINGET_TOKEN }}
+      - name: Install Python dependencies
         run: |
-          # Get fork owner from WINGET_FORK_REPO (format: owner/repo)
-          FORK_OWNER=$(echo "${{ secrets.WINGET_FORK_REPO }}" | cut -d'/' -f1)
-          
-          # Create PR body
-          PR_BODY="This PR updates ${{ steps.check.outputs.package_id }} to version ${{ steps.check.outputs.version }}.
+          pip install -r scripts/requirements.txt
+      
+      - name: Set up Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Check version and generate update info
+        id: check-version
+        run: |
+          python scripts/check_version.py "${{ matrix.checkver }}" "version_info.json"
+          if [ -f "version_info.json" ]; then
+            echo "has_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_update=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Update manifest and create PR
+        if: steps.check-version.outputs.has_update == 'true'
+        run: |
+          python scripts/update_manifest.py version_info.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
+          GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+      
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-info-${{ matrix.package }}-${{ matrix.version }}
+          path: version_info.json
+          if-no-files-found: ignore
 
-          Package Information:
-          - Package ID: ${{ steps.check.outputs.package_id }}
-          - Version: ${{ steps.check.outputs.version }}
-          - Installer URL: ${{ steps.check.outputs.installer_url }}
-
-          Automated Update:
-          This PR was automatically generated by winget-pkgs-updater (https://github.com/${{ github.repository }})."
+  summary:
+    name: Update Summary
+    needs: [check-versions, update-manifest]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# WinGet Packages Update Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Create PR using gh CLI
-          gh pr create \
-            --repo microsoft/winget-pkgs \
-            --base master \
-            --head "${FORK_OWNER}:${{ steps.branch.outputs.branch_name }}" \
-            --title "Update ${{ steps.check.outputs.package_id }} to version ${{ steps.check.outputs.version }}" \
-            --body "$PR_BODY"
+          matrix='${{ needs.check-versions.outputs.matrix }}'
+          count=$(echo "$matrix" | jq 'length')
+          
+          if [ "$count" -eq 0 ]; then
+            echo "✅ No updates found. All packages are up to date." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "📦 Found $count package(s) to update:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "$matrix" | jq -r '.[] | "- **\(.package)** version \(.version)"' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check the [Pull Requests](https://github.com/microsoft/winget-pkgs/pulls?q=is:pr+author:${{ github.repository_owner }}) in microsoft/winget-pkgs" >> $GITHUB_STEP_SUMMARY
+          fi
