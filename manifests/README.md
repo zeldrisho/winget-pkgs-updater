@@ -9,6 +9,7 @@ Format: `{Publisher}.{Package}.checkver.yaml`
 Examples:
 - `VNGCorp.Zalo.checkver.yaml`
 - `Seelen.SeelenUI.checkver.yaml`
+- `Stremio.StremioService.checkver.yaml`
 
 ## Configuration Structure
 
@@ -36,6 +37,7 @@ Path structure in microsoft/winget-pkgs repository:
 **Examples:**
 - `Seelen.SeelenUI` → `manifests/s/Seelen/SeelenUI`
 - `VNGCorp.Zalo` → `manifests/v/VNGCorp/Zalo`
+- `Stremio.StremioService` → `manifests/s/Stremio/StremioService`
 - `Google.Chrome` → `manifests/g/Google/Chrome`
 
 **How to find:**

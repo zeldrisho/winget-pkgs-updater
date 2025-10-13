@@ -9,13 +9,19 @@ checkver:
     # Get latest stable release from GitHub API
     $response = Invoke-RestMethod -Uri "https://api.github.com/repos/eythaann/Seelen-UI/releases/latest"
     if ($response.tag_name) {
-      # Remove 'v' prefix and add .0 suffix (e.g., v2.3.12 -> 2.3.12.0)
+      # Remove 'v' prefix (e.g., v2.4.4 -> 2.4.4)
+      # GitHub tag is 3-part (2.4.4) but MSIX filename needs 4-part (2.4.4.0)
       $version = $response.tag_name -replace '^v', ''
-      $version = $version + '.0'
+      
+      # Check if version already has 4 parts
+      if (($version.Split('.').Count) -eq 3) {
+        $version = $version + '.0'
+      }
       Write-Output $version
     }
   regex: "([\\d\\.]+)"
 
-# MSIX installer template - uses shortened version without .0 in download URL
-# Example: version 2.3.12.0 -> download URL has v2.3.12
+# MSIX installer template
+# Tag uses 3-part version (v2.4.4), filename uses 4-part version (2.4.4.0)
+# {versionShort} removes trailing .0 for the tag, {version} keeps full version for filename
 installerUrlTemplate: "https://github.com/eythaann/Seelen-UI/releases/download/v{versionShort}/Seelen.SeelenUI_{version}_x64__p6yyn03m1894e.Msix"

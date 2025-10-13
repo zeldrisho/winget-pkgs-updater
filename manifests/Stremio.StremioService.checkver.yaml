@@ -1,0 +1,20 @@
+packageIdentifier: Stremio.StremioService
+# Path structure: manifests/{first-letter}/{publisher}/{package}
+# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/s/Stremio/StremioService
+manifestPath: manifests/s/Stremio/StremioService
+
+checkver:
+  type: script
+  script: |
+    # Get latest release from GitHub API
+    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/Stremio/stremio-service/releases/latest"
+    if ($response.tag_name) {
+      # Remove 'v' prefix (e.g., v0.1.14 -> 0.1.14)
+      $version = $response.tag_name -replace '^v', ''
+      Write-Output $version
+    }
+  regex: "([\\d\\.]+)"
+
+# Installer URL template from GitHub releases
+# Example: https://github.com/Stremio/stremio-service/releases/download/v0.1.14/StremioServiceSetup.exe
+installerUrlTemplate: "https://github.com/Stremio/stremio-service/releases/download/v{version}/StremioServiceSetup.exe"
