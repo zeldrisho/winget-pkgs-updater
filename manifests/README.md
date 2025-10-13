@@ -89,7 +89,9 @@ When a new version is detected, the automation will:
 3. Update manifest files with new version and SHA256
 4. Create PR with:
    - **Title**: `New version: VNGCorp.Zalo version 25.8.3`
-   - **Body**: `Automated by zeldrisho/winget-pkgs-updater in workflow run #123.`
+   - **Body**: `Automated by [zeldrisho/winget-pkgs-updater](https://github.com/zeldrisho/winget-pkgs-updater/actions/runs/123456789) in workflow run #123456789.`
+   
+   The workflow run link is clickable, making it easy for Microsoft reviewers to verify the automation.
 
 ## Benefits of This Approach
 

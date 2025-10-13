@@ -91,11 +91,12 @@ def update_manifest_content(content: str, version: str, sha256: Optional[str] = 
     return content
 
 
-def clone_winget_pkgs(fork_owner: str, temp_dir: str) -> bool:
+def clone_winget_pkgs(fork_owner: str, temp_dir: str, token: str) -> bool:
     """Clone forked winget-pkgs repository"""
     try:
-        repo_url = f"https://github.com/{fork_owner}/winget-pkgs.git"
-        print(f"Cloning {repo_url}...")
+        # Use token in URL for authentication
+        repo_url = f"https://{token}@github.com/{fork_owner}/winget-pkgs.git"
+        print(f"Cloning https://github.com/{fork_owner}/winget-pkgs.git...")
         
         subprocess.run(
             ['git', 'clone', '--depth', '1', repo_url, temp_dir],
@@ -212,7 +213,7 @@ def update_manifests(
         return False
 
 
-def commit_and_push(repo_dir: str, package_id: str, version: str, branch_name: str) -> bool:
+def commit_and_push(repo_dir: str, package_id: str, version: str, branch_name: str, token: str) -> bool:
     """Commit changes and push to fork"""
     try:
         # Add changes
@@ -229,6 +230,28 @@ def commit_and_push(repo_dir: str, package_id: str, version: str, branch_name: s
             cwd=repo_dir,
             check=True
         )
+        
+        # Get remote URL with token
+        result = subprocess.run(
+            ['git', 'remote', 'get-url', 'origin'],
+            cwd=repo_dir,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        remote_url = result.stdout.strip()
+        
+        # Update remote URL with token if not already present
+        if token not in remote_url and not remote_url.startswith('https://'):
+            # Assume it's SSH, convert to HTTPS with token
+            if remote_url.startswith('git@github.com:'):
+                repo_path = remote_url.replace('git@github.com:', '').replace('.git', '')
+                remote_url = f"https://{token}@github.com/{repo_path}.git"
+                subprocess.run(
+                    ['git', 'remote', 'set-url', 'origin', remote_url],
+                    cwd=repo_dir,
+                    check=True
+                )
         
         # Push
         subprocess.run(
@@ -248,12 +271,17 @@ def create_pull_request(
     package_id: str,
     version: str,
     branch_name: str,
-    workflow_run_id: str
+    workflow_run_number: str,
+    workflow_run_id: str,
+    repo_name: str = "winget-pkgs-updater"
 ) -> bool:
     """Create pull request using GitHub CLI"""
     try:
         title = f"New version: {package_id} version {version}"
-        body = f"Automated by {fork_owner}/winget-pkgs-updater in workflow run #{workflow_run_id}."
+        
+        # Build PR body with workflow link
+        workflow_url = f"https://github.com/{fork_owner}/{repo_name}/actions/runs/{workflow_run_id}"
+        body = f"Automated by [{fork_owner}/{repo_name}]({workflow_url}) in workflow run #{workflow_run_number}."
         
         # Use gh CLI to create PR
         subprocess.run(
@@ -268,6 +296,7 @@ def create_pull_request(
         )
         
         print(f"✅ Pull request created: {title}")
+        print(f"📝 Workflow run: {workflow_url}")
         return True
         
     except Exception as e:
@@ -296,14 +325,21 @@ def main():
     
     # Get environment variables
     fork_owner = os.getenv('GITHUB_REPOSITORY_OWNER', 'zeldrisho')
+    workflow_run_number = os.getenv('GITHUB_RUN_NUMBER', 'unknown')
     workflow_run_id = os.getenv('GITHUB_RUN_ID', 'unknown')
+    repo_name = os.getenv('GITHUB_REPOSITORY', 'zeldrisho/winget-pkgs-updater').split('/')[-1]
+    token = os.getenv('GITHUB_TOKEN') or os.getenv('GH_TOKEN')
+    
+    if not token:
+        print("Error: GITHUB_TOKEN or GH_TOKEN environment variable not set", file=sys.stderr)
+        sys.exit(1)
     
     # Create temporary directory for cloning
     with tempfile.TemporaryDirectory() as temp_dir:
         repo_dir = os.path.join(temp_dir, 'winget-pkgs')
         
         # Clone fork
-        if not clone_winget_pkgs(fork_owner, repo_dir):
+        if not clone_winget_pkgs(fork_owner, repo_dir, token):
             print("Failed to clone repository")
             sys.exit(1)
         
@@ -317,12 +353,12 @@ def main():
             sys.exit(1)
         
         # Commit and push
-        if not commit_and_push(repo_dir, package_id, version, branch_name):
+        if not commit_and_push(repo_dir, package_id, version, branch_name, token):
             print("Failed to commit/push changes")
             sys.exit(1)
         
         # Create PR
-        if not create_pull_request(fork_owner, package_id, version, branch_name, workflow_run_id):
+        if not create_pull_request(fork_owner, package_id, version, branch_name, workflow_run_number, workflow_run_id, repo_name):
             print("Failed to create pull request")
             sys.exit(1)
     

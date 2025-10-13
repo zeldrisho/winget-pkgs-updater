@@ -69,11 +69,18 @@ jobs:
                   
                   # Check if this version already exists in microsoft/winget-pkgs
                   manifest_path=$(jq -r '.checkver_config.manifestPath' version_info.json)
-                  if gh api "/repos/microsoft/winget-pkgs/contents/$manifest_path/$version" 2>/dev/null; then
-                    echo "Version $version already exists in microsoft/winget-pkgs, skipping"
+                  echo "Checking if $manifest_path/$version exists..."
+                  
+                  if gh api "/repos/microsoft/winget-pkgs/contents/$manifest_path/$version" > /dev/null 2>&1; then
+                    echo "⏭️  Version $version already exists in microsoft/winget-pkgs, skipping"
                   else
-                    echo "New version found: $package_id $version"
-                    updates=$(echo "$updates" | jq --arg file "$file" --arg pkg "$package_id" --arg ver "$version" '. + [{checkver: $file, package: $pkg, version: $ver}]')
+                    echo "✨ New version found: $package_id $version"
+                    update_json=$(jq -n \
+                      --arg file "$file" \
+                      --arg pkg "$package_id" \
+                      --arg ver "$version" \
+                      '{checkver: $file, package: $pkg, version: $ver}')
+                    updates=$(echo "$updates" | jq --argjson item "$update_json" '. + [$item]')
                   fi
                   rm -f version_info.json
                 fi

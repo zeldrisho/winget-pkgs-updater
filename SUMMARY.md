@@ -33,7 +33,8 @@
 - ✅ Auto-download installer & calculate SHA256
 - ✅ Auto-create PR với format chuẩn Microsoft:
   - Title: `New version: VNGCorp.Zalo version 25.10.2`
-  - Body: `Automated by zeldrisho/winget-pkgs-updater in workflow run #123`
+  - Body: `Automated by [zeldrisho/winget-pkgs-updater](workflow-run-url) in workflow run #123456789`
+  - ✨ Link đến workflow run để dễ verify
 - ✅ Smart detection: Skip nếu version đã tồn tại
 
 ## 📁 Cấu trúc mới
