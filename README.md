@@ -2,6 +2,10 @@
 
 Tự động tạo Pull Request lên [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) khi phát hiện phiên bản mới của các ứng dụng.
 
+## 🚀 Bắt đầu nhanh
+
+**Xem [QUICKSTART.md](QUICKSTART.md)** - Hướng dẫn cài đặt trong 5 phút!
+
 ## Tính năng
 
 - ✅ Tự động kiểm tra phiên bản mới của các ứng dụng
@@ -11,6 +15,8 @@ Tự động tạo Pull Request lên [microsoft/winget-pkgs](https://github.com/
 - ✅ Chạy định kỳ bằng GitHub Actions
 
 ## Bắt đầu nhanh
+
+👉 **[QUICKSTART.md](QUICKSTART.md)** - Hướng dẫn cài đặt trong 5 phút!
 
 ### 1. Fork repository này
 
@@ -28,6 +34,7 @@ Xem hướng dẫn chi tiết trong [SETUP.md](SETUP.md).
 
 ## Tài liệu
 
+- **[QUICKSTART.md](QUICKSTART.md)** - 🚀 Hướng dẫn cài đặt nhanh 5 phút
 - **[SETUP.md](SETUP.md)** - Hướng dẫn cài đặt chi tiết
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Hướng dẫn thêm packages mới
 - **[manifests/README.md](manifests/README.md)** - Cấu trúc manifest
