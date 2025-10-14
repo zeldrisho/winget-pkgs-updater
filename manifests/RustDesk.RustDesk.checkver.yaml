@@ -12,9 +12,14 @@ checkver:
     $response = Invoke-RestMethod -Uri "https://api.github.com/repos/rustdesk/rustdesk/releases/latest"
     if ($response.tag_name) {
       # Tag format: 1.4.2 (no 'v' prefix)
-      Write-Output $response.tag_name
+      $version = $response.tag_name
+      $releaseNotes = $response.body
+      $releaseNotesUrl = $response.html_url
+      
+      # Output format: version|releaseNotesUrl|releaseNotes
+      Write-Output "$version|$releaseNotesUrl|$releaseNotes"
     }
-  regex: "([\\d\\.]+)"
+  regex: "(?P<version>[\\d\\.]+)\\|(?P<releaseNotesUrl>[^\\|]+)\\|(?P<releaseNotes>.*)"
 
 # RustDesk installer URLs from GitHub releases
 # x86 uses -x86-sciter.exe, x64 uses -x86_64.exe
