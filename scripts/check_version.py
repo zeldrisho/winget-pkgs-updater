@@ -41,10 +41,14 @@ def run_powershell_script(script: str) -> Optional[str]:
 
 
 def get_latest_version_script(checkver_config: Dict) -> Optional[tuple]:
-    """
+    r"""
     Extract version using PowerShell script method.
     Returns tuple of (version, metadata_dict) where metadata contains
     named groups from regex match for use in URL templates.
+    
+    Supports optional 'replace' field for transforming matched version string.
+    Example: regex "(\d{2})/(\d{2})/(\d{4})" with replace "${3}.${1}.${2}"
+    transforms "10/13/2025" to "2025.10.13"
     """
     try:
         checkver = checkver_config.get('checkver', {})
@@ -55,6 +59,7 @@ def get_latest_version_script(checkver_config: Dict) -> Optional[tuple]:
             
         script = checkver.get('script', '')
         regex_pattern = checkver.get('regex', '')
+        replace_pattern = checkver.get('replace', '')
         
         if not script or not regex_pattern:
             print("Missing script or regex in checkver config")
@@ -71,7 +76,17 @@ def get_latest_version_script(checkver_config: Dict) -> Optional[tuple]:
         # Extract version using regex
         match = re.search(regex_pattern, output)
         if match:
-            version = match.group(1)
+            # If replace pattern is provided, use it to transform the version
+            if replace_pattern:
+                # Replace ${1}, ${2}, etc. with corresponding capture groups
+                version = replace_pattern
+                for i, group in enumerate(match.groups(), start=1):
+                    version = version.replace(f"${{{i}}}", group)
+                print(f"Applied replace pattern: {version}")
+            else:
+                # Default: use first capture group
+                version = match.group(1)
+            
             print(f"Extracted version: {version}")
             
             # Extract all named groups as metadata

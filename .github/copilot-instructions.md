@@ -46,12 +46,39 @@ regex: "(?P<version>[\\d\\.]+)\\|(?P<build>[^\\|]+)"
 installerUrlTemplate: "https://example.com/app-{build}.zip"
 ```
 
+**Regex Replace Pattern:**
+Transform matched strings using `replace` field (similar to scoop's checkver):
+```yaml
+# Example: Convert date MM/DD/YYYY to version YYYY.MM.DD
+regex: "(\\d{2})/(\\d{2})/(\\d{4})"
+replace: "${3}.${1}.${2}"  # Outputs: 2025.10.13
+```
+Use `${1}`, `${2}`, etc. to reference capture groups.
+
 **Multi-Architecture URLs:**
 ```yaml
 installerUrlTemplate:
   x64: "https://example.com/{version}-win64.zip"
   arm64: "https://example.com/{version}-arm64.zip"
 ```
+
+**Fetching from Raw Sources:**
+For packages where version info comes from raw text files (not installers):
+```yaml
+# Example: Sysinternals Suite uses static download URLs
+# Version is determined by documentation date
+checkver:
+  script: |
+    $response = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/..." -UseBasicParsing
+    Write-Output $response.Content
+  regex: "ms\\.date: (\\d{2})/(\\d{2})/(\\d{4})"
+  replace: "${3}.${1}.${2}"
+
+installerUrlTemplate:
+  x64: "https://download.example.com/files/Package.zip"
+  # URL doesn't change, but version metadata does
+```
+The updater fetches manifests from microsoft/winget-pkgs and updates version fields only.
 
 ## Key Concepts
 

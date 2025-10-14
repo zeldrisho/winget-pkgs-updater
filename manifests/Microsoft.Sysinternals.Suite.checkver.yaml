@@ -1,0 +1,32 @@
+# Checkver configuration for Microsoft Sysinternals Suite
+# This file tells the updater how to check for new versions
+# The actual manifests are fetched from microsoft/winget-pkgs
+
+packageIdentifier: Microsoft.Sysinternals.Suite
+# Path structure: manifests/{first-letter}/{publisher}/{package}
+# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Microsoft/Sysinternals/Suite
+manifestPath: manifests/m/Microsoft/Sysinternals/Suite
+
+checkver:
+  type: script
+  script: |
+    # Fetch version from Sysinternals documentation on GitHub
+    # The version is embedded as a date in the markdown frontmatter
+    $response = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/MicrosoftDocs/sysinternals/live/sysinternals/downloads/sysinternals-suite.md" -UseBasicParsing
+    $content = $response.Content
+    
+    # Extract the ms.date field (format: MM/DD/YYYY)
+    if ($content -match 'ms\.date:\s*(\d{2})/(\d{2})/(\d{4})') {
+      # Output the matched date in MM/DD/YYYY format
+      # The replace pattern will transform it to YYYY.MM.DD
+      Write-Output "$($Matches[1])/$($Matches[2])/$($Matches[3])"
+    }
+  # Match date pattern MM/DD/YYYY
+  regex: "(\\d{2})/(\\d{2})/(\\d{4})"
+  # Transform to YYYY.MM.DD version format
+  replace: "${3}.${1}.${2}"
+
+# Sysinternals Suite download URLs (static URLs, version is in the date format)
+installerUrlTemplate:
+  x64: "https://download.sysinternals.com/files/SysinternalsSuite.zip"
+  arm64: "https://download.sysinternals.com/files/SysinternalsSuite-ARM64.zip"
