@@ -2,193 +2,73 @@
 
 ## Project Overview
 
-This is an automated tool that monitors software packages and creates pull requests to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) when new versions are detected. The system runs on GitHub Actions, checking versions via PowerShell scripts and managing the entire PR lifecycle.
+Automated tool that monitors software packages and creates pull requests to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) when new versions are detected. Runs on GitHub Actions, checking versions via PowerShell scripts.
 
 ## Architecture
 
-### Three-Layer System
-
 1. **Version Detection** (`scripts/check_version.py`)
-   - Executes PowerShell scripts from checkver configs to scrape version info
-   - Supports multiple detection methods: GitHub API, web scraping, redirect following
-   - Outputs version info JSON for next stage
+   - Executes PowerShell scripts to scrape version info
+   - Supports custom metadata extraction via named regex groups
+   - Outputs version info JSON
 
 2. **Manifest Update** (`scripts/update_manifest.py`)
-   - Fetches existing manifests from microsoft/winget-pkgs
+   - Fetches manifests from microsoft/winget-pkgs
    - Downloads installers to calculate SHA256 hashes
-   - Special handling: MSIX files require SignatureSha256 calculation via PowerShell
-   - Performs **global version string replacement** across all manifest files
+   - Performs global version string replacement across manifests
 
 3. **PR Management**
-   - Smart PR detection: skip if OPEN/MERGED, retry if CLOSED
-   - Creates branch in user's winget-pkgs fork
-   - Submits PR to upstream microsoft/winget-pkgs
+   - Smart PR detection (skip if OPEN/MERGED, retry if CLOSED)
+   - Creates branch in user's fork
+   - Submits PR to upstream
 
-## Critical Patterns
+## Checkver Configuration
 
-### Checkver Configuration (manifests/*.checkver.yaml)
-
-**Structure:**
+**Basic Structure:**
 ```yaml
 packageIdentifier: Publisher.Package
-manifestPath: manifests/{first-letter}/{publisher}/{package}  # lowercase first letter
+manifestPath: manifests/{first-letter}/{publisher}/{package}
 checkver:
   type: script
   script: |
-    # PowerShell code that outputs version string to stdout
+    # PowerShell code that outputs version string
   regex: "([\\d\\.]+)"
 installerUrlTemplate: "https://example.com/{version}/installer.exe"
 ```
 
-**Path Convention:** The `manifestPath` must match microsoft/winget-pkgs structure:
-- `Seelen.SeelenUI` → `manifests/s/Seelen/SeelenUI`
-- `VNGCorp.Zalo` → `manifests/v/VNGCorp/Zalo`
-
-**Version Template Variables:**
+**Standard Placeholders:**
 - `{version}` - Full version (e.g., 2.3.12.0)
-- `{versionShort}` - Version without trailing .0 (e.g., 2.3.12)
-- **Custom placeholders** - Any named group from regex (e.g., `{rcversion}`, `{build}`, `{buildx64}`)
+- `{versionShort}` - Version without trailing .0
 
-### Advanced: Custom Metadata & Multi-Architecture URLs
-
-**Custom Metadata Extraction:**
-PowerShell scripts can output structured data parsed via Python named groups:
-
+**Custom Metadata (Advanced):**
+Use Python named groups to extract additional data:
 ```yaml
-checkver:
-  type: script
-  script: |
-    # Output format: VERSION|METADATA1|METADATA2|...
-    Write-Output "4.6.250531|46RC2|230919|230919|250531"
-  # Use Python named groups: (?P<name>pattern)
-  regex: "(?P<version>[\\d\\.]+)\\|(?P<rcversion>[^\\|]+)\\|(?P<buildx64>[^\\|]+)\\|(?P<buildx86>[^\\|]+)\\|(?P<buildarm64>[^\\|]+)"
+regex: "(?P<version>[\\d\\.]+)\\|(?P<build>[^\\|]+)"
+installerUrlTemplate: "https://example.com/app-{build}.zip"
 ```
 
-**Multi-Architecture URL Templates:**
-For packages with architecture-specific URLs (different build dates, versions):
-
+**Multi-Architecture URLs:**
 ```yaml
 installerUrlTemplate:
-  x64: "https://example.com/app{rcversion}-{buildx64}-win64.zip"
-  x86: "https://example.com/app{rcversion}-{buildx86}-win32.zip"
-  arm64: "https://example.com/app{rcversion}-{buildarm64}-arm64.zip"
+  x64: "https://example.com/{version}-win64.zip"
+  arm64: "https://example.com/{version}-arm64.zip"
 ```
 
-**Example: UniKey Package**
-UniKey has different build dates per architecture (x64/x86: 230919, arm64: 250531):
-- Script outputs: `4.6.250531|46RC2|230919|230919|250531`
-- Generates correct URLs: `unikey46RC2-230919-win64.zip`, `unikey46RC2-250531-arm64.zip`
-- PackageVersion uses latest build: `4.6.250531`
+## Key Concepts
 
-**check_version.py output:**
-```json
-{
-  "version": "4.6.250531",
-  "installerUrl": "...-win64.zip",      // Primary URL (x64)
-  "installerUrls": {                    // Multi-arch URLs
-    "x64": "...-win64.zip",
-    "x86": "...-win32.zip",
-    "arm64": "...-arm64.zip"
-  },
-  "metadata": {                         // Custom metadata
-    "rcversion": "46RC2",
-    "buildx64": "230919",
-    "buildarm64": "250531"
-  }
-}
-```
+- **Global String Replacement:** update_manifest.py replaces ALL occurrences of old version with new version
+- **PowerShell Scripts:** Use `pwsh` for version detection (30s timeout)
+- **Python Named Groups:** Use `(?P<name>...)` NOT `(?<name>...)`
+- **MSIX Packages:** Require both SHA256 and SignatureSha256
 
-**Important:** Python uses `(?P<name>...)` for named groups, NOT PowerShell's `(?<name>...)` syntax.
-
-### Manifest Update Strategy
-
-**Global String Replacement:** `update_manifest.py` replaces ALL occurrences of the old version string across all manifest files (version, installer, locale manifests). This handles:
-- `PackageVersion: 1.0.0` → `PackageVersion: 2.0.0`
-- URLs: `installer/v1.0.0/app.exe` → `installer/v2.0.0/app.exe`
-- Display names: `App 1.0.0` → `App 2.0.0`
-
-**Hash Calculation:**
-- Standard installers: SHA256 of file
-- MSIX/APPX: SHA256 + SignatureSha256 (extracted via PowerShell's Get-AuthenticodeSignature)
-
-### PowerShell Integration
-
-**Why PowerShell:** Many version detection patterns require Windows-specific APIs or complex HTTP handling (redirects, headers). All scripts run via `pwsh` (PowerShell 7.5+).
-
-**Common Patterns:**
-```powershell
-# GitHub releases
-Invoke-RestMethod -Uri "https://api.github.com/repos/owner/repo/releases/latest"
-
-# Following redirects
-Invoke-WebRequest -MaximumRedirection 0 -ErrorAction SilentlyContinue
-
-# MSIX signature extraction
-Get-AuthenticodeSignature $packagePath
-```
-
-## Development Workflows
-
-### Testing New Packages
+## Testing
 
 ```bash
-# 1. Create checkver config in manifests/
-python3 scripts/check_version.py manifests/YourPackage.checkver.yaml
-
-# 2. Test full update (requires WINGET_PKGS_TOKEN)
-python3 scripts/update_manifest.py --checkver manifests/YourPackage.checkver.yaml
+python3 scripts/check_version.py manifests/Package.checkver.yaml
 ```
 
-### Local Dependencies
+## Environment
 
-```bash
-pip install -r scripts/requirements.txt  # Python: requests, PyYAML, beautifulsoup4
-sudo apt-get install -y powershell      # PowerShell 7.5+
-gh auth login                            # GitHub CLI for PR operations
-```
+- **Required:** `WINGET_PKGS_TOKEN` (GitHub token with repo + workflow scopes)
+- **Optional:** `WINGET_FORK_REPO` (defaults to `{owner}/winget-pkgs`)
+- **Runtime:** Ubuntu 24.04, Python 3.11+, PowerShell 7.5+
 
-### Workflow Triggers
-
-- **Scheduled:** Every 6 hours (`update-packages.yml`)
-- **Manual:** workflow_dispatch with optional package filter
-- **PR Testing:** Validates checkver configs on PR (`test-manifest-checker.yml`)
-
-## Key Files
-
-- **manifests/*.checkver.yaml** - Package version detection configs
-- **scripts/check_version.py** - Version detection orchestrator (PowerShell executor)
-- **scripts/update_manifest.py** - Manifest updater + PR creator (500+ lines, handles entire lifecycle)
-- **.github/workflows/update-packages.yml** - Main automation workflow
-
-## Environment Requirements
-
-- **Secrets:** 
-  - `WINGET_PKGS_TOKEN` - GitHub token with `repo` + `workflow` scopes (required)
-  - `WINGET_FORK_REPO` - Fork repository in format `username/winget-pkgs` (optional, defaults to `{GITHUB_REPOSITORY_OWNER}/winget-pkgs`)
-- **Runtime:** Ubuntu 24.04, Python 3.11+, PowerShell 7.5+, GitHub CLI
-- **Fork:** User must have forked microsoft/winget-pkgs
-
-## Anti-Patterns
-
-❌ Don't edit manifests directly - they're fetched from microsoft/winget-pkgs
-❌ Don't use regex for partial version replacement - global string replace is safer
-❌ Don't skip PR existence check - causes duplicate PRs
-❌ Don't forget SignatureSha256 for MSIX installers - microsoft/winget-pkgs validates this
-
-## Common Failure Points
-
-1. **PowerShell script returns empty** - Check timeout (30s limit), network issues, API rate limits
-2. **SignatureSha256 missing** - MSIX files require signature extraction via PowerShell
-3. **Version already exists** - Workflow checks microsoft/winget-pkgs before creating PR
-4. **Fork not found** - Verify WINGET_PKGS_TOKEN has access to user's fork and WINGET_FORK_REPO is correct format (username/winget-pkgs)
-5. **Git fetch upstream fails** - Ensure fork exists and token has proper permissions
-6. **Regex named groups error** - Use Python syntax `(?P<name>...)` not PowerShell `(?<name>...)`
-
-## Special Cases
-
-### UniKey Package
-- **Issue:** Each architecture has different build dates (x64/x86: 230919, arm64: 250531)
-- **Solution:** Custom metadata extraction + per-architecture URL templates
-- **Config:** `manifests/UniKey.UniKey.checkver.yaml`
-- **Pattern:** Extract RC version (46RC2) and per-arch builds, use in URL templates
-- **Note:** update_manifest.py currently only handles single installerUrl (enhancement needed for full multi-arch support)
