@@ -518,13 +518,22 @@ def update_manifests(
             return False
         
         # Sort versions and get latest
-        # Use a robust sorting key that handles both numeric versions (1.2.3) and date-based versions (2025.10.13)
+        # Use a robust sorting key that handles:
+        # - Numeric versions: 1.2.3
+        # - Date-based versions with dots: 2025.10.13
+        # - Date-based versions with hyphens: 2025-09-16
         def version_sort_key(v):
-            try:
-                return [int(x) for x in v.split('.')]
-            except ValueError:
-                # If conversion fails, try to sort as strings (fallback)
-                return [x for x in v.split('.')]
+            parts = []
+            # Split by both dots and hyphens to handle all formats
+            for x in re.split(r'[.\-]', v):
+                try:
+                    # Try to convert to int for numeric comparison
+                    parts.append(int(x))
+                except ValueError:
+                    # If it contains non-numeric characters, treat as 0
+                    # This ensures consistent type (all ints)
+                    parts.append(0)
+            return parts
         
         versions.sort(key=version_sort_key)
         latest_version = versions[-1]

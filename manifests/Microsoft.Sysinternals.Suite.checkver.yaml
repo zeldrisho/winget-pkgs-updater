@@ -23,8 +23,8 @@ checkver:
     }
   # Match date pattern MM/DD/YYYY
   regex: "(\\d{2})/(\\d{2})/(\\d{4})"
-  # Transform to YYYY.MM.DD version format
-  replace: "${3}.${1}.${2}"
+  # Transform to YYYY-MM-DD version format (with hyphens, not dots)
+  replace: "${3}-${1}-${2}"
 
 # Sysinternals Suite download URLs (static URLs, version is in the date format)
 installerUrlTemplate:
