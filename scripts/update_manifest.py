@@ -167,7 +167,8 @@ def update_manifest_content(
     sha256: Optional[str] = None, 
     signature_sha256: Optional[str] = None,
     release_notes: Optional[str] = None,
-    release_notes_url: Optional[str] = None
+    release_notes_url: Optional[str] = None,
+    arch_hashes: Optional[Dict[str, str]] = None
 ) -> str:
     """
     Update version and SHA256 in manifest content.
@@ -175,7 +176,7 @@ def update_manifest_content(
     Strategy:
     1. Extract old version from PackageVersion field
     2. Replace ALL occurrences of old version with new version
-    3. Update SHA256 hashes if provided
+    3. Update SHA256 hashes if provided (supports multi-arch)
     4. Update ReleaseDate to today
     5. Update ReleaseNotes and ReleaseNotesUrl if provided
     """
@@ -209,8 +210,30 @@ def update_manifest_content(
                 content = content.replace(old_short, new_short)
                 print(f"  ✅ Also replaced {short_count} occurrences of short version {old_short} with {new_short}")
     
-    # Update InstallerSha256 if provided
-    if sha256:
+    # Update InstallerSha256 - support multi-architecture
+    if arch_hashes:
+        # Multi-architecture: update hash for each architecture
+        lines = content.split('\n')
+        updated_lines = []
+        current_arch = None
+        
+        for line in lines:
+            # Track current architecture
+            if re.match(r'^\s*-\s*Architecture:\s*(\w+)', line):
+                match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
+                current_arch = match.group(1)
+            
+            # Update hash for current architecture
+            if 'InstallerSha256:' in line and current_arch and current_arch in arch_hashes:
+                indent = len(line) - len(line.lstrip())
+                line = ' ' * indent + f'InstallerSha256: {arch_hashes[current_arch]}'
+                print(f"  ✅ Updated {current_arch} InstallerSha256")
+            
+            updated_lines.append(line)
+        
+        content = '\n'.join(updated_lines)
+    elif sha256:
+        # Single architecture (legacy)
         content = re.sub(
             r'InstallerSha256:\s*[A-Fa-f0-9]+',
             f'InstallerSha256: {sha256}',
@@ -320,6 +343,93 @@ def create_pr_branch(repo_dir: str, package_id: str, version: str) -> str:
         raise
 
 
+def add_missing_architectures(content: str, arch_hashes: Dict[str, str], installer_urls: Dict[str, str]) -> str:
+    """
+    Add new architectures to installer manifest if they don't exist.
+    For example, add arm64 if version only has x64/x86.
+    """
+    # Find existing architectures in manifest
+    existing_archs = set()
+    for line in content.split('\n'):
+        if re.match(r'^\s*-\s*Architecture:\s*(\w+)', line):
+            match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
+            existing_archs.add(match.group(1))
+    
+    # Find missing architectures
+    new_archs = set(arch_hashes.keys()) - existing_archs
+    
+    if not new_archs:
+        return content  # No new architectures to add
+    
+    print(f"  ➕ Adding new architectures: {', '.join(new_archs)}")
+    
+    lines = content.split('\n')
+    
+    # Find where to insert new architectures (before ManifestType)
+    insert_idx = len(lines)
+    for i in range(len(lines) - 1, -1, -1):
+        if lines[i].strip().startswith('ManifestType:'):
+            insert_idx = i
+            break
+    
+    # Get the structure of the last installer block for reference
+    last_installer_start = -1
+    last_installer_end = -1
+    
+    for i in range(len(lines) - 1, -1, -1):
+        if lines[i].strip().startswith('- Architecture:'):
+            last_installer_start = i
+            # Find end of this installer block
+            for j in range(i + 1, len(lines)):
+                line = lines[j].strip()
+                if line.startswith('- Architecture:') or line.startswith('ManifestType:') or (line and not lines[j].startswith(' ')):
+                    last_installer_end = j - 1
+                    break
+            if last_installer_end == -1:
+                last_installer_end = len(lines) - 1
+            break
+    
+    if last_installer_start == -1:
+        print("  ⚠️  Could not find existing installer block structure")
+        return content
+    
+    # Extract the structure from the last installer (for NestedInstallerType, etc.)
+    installer_template = []
+    nested_installer_lines = []
+    in_nested = False
+    
+    for i in range(last_installer_start, min(last_installer_end + 1, len(lines))):
+        line = lines[i]
+        if 'NestedInstallerType:' in line:
+            in_nested = True
+            nested_installer_lines.append(line)
+        elif in_nested and (line.startswith('  ') and not line.startswith('  InstallerUrl:') and not line.startswith('  InstallerSha256:')):
+            nested_installer_lines.append(line)
+        elif 'InstallerUrl:' in line or 'InstallerSha256:' in line:
+            in_nested = False
+    
+    # Build new architecture sections
+    new_sections = []
+    for arch in sorted(new_archs):  # Sort for consistency
+        arch_section = [f'- Architecture: {arch}']
+        
+        # Add nested installer structure if found
+        if nested_installer_lines:
+            arch_section.extend(nested_installer_lines)
+        
+        # Add URL and hash
+        arch_section.append(f'  InstallerUrl: {installer_urls[arch]}')
+        arch_section.append(f'  InstallerSha256: {arch_hashes[arch]}')
+        
+        new_sections.extend(arch_section)
+        print(f"  ✅ Added {arch} architecture")
+    
+    # Insert new sections before ManifestType
+    lines = lines[:insert_idx] + new_sections + lines[insert_idx:]
+    
+    return '\n'.join(lines)
+
+
 def update_manifests(
     repo_dir: str,
     manifest_path: str,
@@ -327,31 +437,66 @@ def update_manifests(
     version: str,
     installer_url: str,
     release_notes: Optional[str] = None,
-    release_notes_url: Optional[str] = None
+    release_notes_url: Optional[str] = None,
+    installer_urls: Optional[Dict[str, str]] = None
 ) -> bool:
     """Update manifest files in the cloned repository"""
     try:
-        # Determine file extension from URL
-        file_ext = '.msix' if installer_url.lower().endswith('.msix') else '.exe'
-        is_msix = file_ext == '.msix'
-        
-        # Download installer to calculate SHA256
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
-            tmp_path = tmp_file.name
-        
-        if not download_file(installer_url, tmp_path):
-            return False
-        
-        sha256 = calculate_sha256(tmp_path)
-        print(f"Calculated InstallerSha256: {sha256}")
-        
-        # Calculate SignatureSha256 for MSIX packages
-        signature_sha256 = None
-        if is_msix:
-            print("MSIX package detected, calculating SignatureSha256...")
-            signature_sha256 = calculate_msix_signature_sha256(tmp_path)
-        
-        os.unlink(tmp_path)
+        # Multi-architecture support
+        if installer_urls:
+            print(f"Multi-architecture package detected: {', '.join(installer_urls.keys())}")
+            arch_hashes = {}
+            
+            # Calculate hash for each architecture
+            for arch, url in installer_urls.items():
+                print(f"\n📥 Processing {arch} architecture...")
+                file_ext = '.msix' if url.lower().endswith('.msix') else ('.zip' if url.lower().endswith('.zip') else '.exe')
+                
+                with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
+                    tmp_path = tmp_file.name
+                
+                if not download_file(url, tmp_path):
+                    print(f"Failed to download {arch} installer")
+                    os.unlink(tmp_path)
+                    continue
+                
+                arch_hash = calculate_sha256(tmp_path)
+                arch_hashes[arch] = arch_hash
+                print(f"✅ {arch}: {arch_hash}")
+                
+                os.unlink(tmp_path)
+            
+            if not arch_hashes:
+                print("Failed to calculate hashes for any architecture")
+                return False
+            
+            # Use first architecture as primary for backward compatibility
+            sha256 = list(arch_hashes.values())[0]
+            signature_sha256 = None
+        else:
+            # Single architecture (legacy)
+            # Determine file extension from URL
+            file_ext = '.msix' if installer_url.lower().endswith('.msix') else '.exe'
+            is_msix = file_ext == '.msix'
+            
+            # Download installer to calculate SHA256
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
+                tmp_path = tmp_file.name
+            
+            if not download_file(installer_url, tmp_path):
+                return False
+            
+            sha256 = calculate_sha256(tmp_path)
+            print(f"Calculated InstallerSha256: {sha256}")
+            
+            # Calculate SignatureSha256 for MSIX packages
+            signature_sha256 = None
+            if is_msix:
+                print("MSIX package detected, calculating SignatureSha256...")
+                signature_sha256 = calculate_msix_signature_sha256(tmp_path)
+            
+            os.unlink(tmp_path)
+            arch_hashes = None
         
         # Update manifest files
         version_dir = os.path.join(repo_dir, manifest_path, version)
@@ -391,20 +536,33 @@ def update_manifests(
                 with open(src_file, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
-                # Determine if this is locale file (for ReleaseNotes)
+                # Determine if this is installer or locale file
                 is_locale_file = '.locale.' in filename
+                is_installer_file = '.installer.' in filename
                 
                 # Update content with hashes and optionally release notes
                 if is_locale_file and release_notes:
                     # Update locale file with release notes
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256, 
-                        release_notes, release_notes_url
+                        release_notes, release_notes_url, arch_hashes
                     )
-                else:
-                    # Update other files without release notes
+                elif is_installer_file and arch_hashes:
+                    # Update installer file with multi-arch hashes
                     updated_content = update_manifest_content(
-                        content, version, sha256, signature_sha256
+                        content, version, sha256, signature_sha256,
+                        None, None, arch_hashes
+                    )
+                    # Add missing architectures (e.g., arm64 if not in old version)
+                    if installer_urls:
+                        updated_content = add_missing_architectures(
+                            updated_content, arch_hashes, installer_urls
+                        )
+                else:
+                    # Update other files without release notes or multi-arch
+                    updated_content = update_manifest_content(
+                        content, version, sha256, signature_sha256,
+                        None, None, arch_hashes
                     )
                 
                 with open(dst_file, 'w', encoding='utf-8') as f:
@@ -537,11 +695,17 @@ def main():
     checkver_config = version_info['checkver_config']
     manifest_path = checkver_config.get('manifestPath', '')
     
+    # Get multi-architecture URLs if available
+    installer_urls = version_info.get('installerUrls')
+    
     # Get release notes if available
     release_notes = version_info.get('releaseNotes')
     release_notes_url = version_info.get('releaseNotesUrl')
     
     print(f"Updating {package_id} to version {version}")
+    
+    if installer_urls:
+        print(f"Multi-architecture package: {', '.join(installer_urls.keys())}")
     
     if release_notes:
         print(f"📝 Release notes available ({len(release_notes)} chars)")
@@ -575,8 +739,8 @@ def main():
         repo_dir = args.fork_path
         print(f"Using existing fork at: {repo_dir}")
         
-        # Update manifests with release notes
-        if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url):
+        # Update manifests with release notes and multi-arch support
+        if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls):
             print("Failed to update manifests")
             sys.exit(1)
         
@@ -595,8 +759,8 @@ def main():
             branch_name = create_pr_branch(repo_dir, package_id, version)
             print(f"Created branch: {branch_name}")
             
-            # Update manifests with release notes
-            if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url):
+            # Update manifests with release notes and multi-arch support
+            if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls):
                 print("Failed to update manifests")
                 sys.exit(1)
             
@@ -614,6 +778,7 @@ def main():
                 print(f"✅ Successfully created PR for {package_id} version {version}")
             else:
                 print(f"✅ Successfully updated manifests for {package_id} version {version} (no PR created)")
+
 
 
 if __name__ == '__main__':
