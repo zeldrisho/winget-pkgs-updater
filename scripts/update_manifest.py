@@ -518,7 +518,15 @@ def update_manifests(
             return False
         
         # Sort versions and get latest
-        versions.sort(key=lambda v: [int(x) for x in v.split('.')])
+        # Use a robust sorting key that handles both numeric versions (1.2.3) and date-based versions (2025.10.13)
+        def version_sort_key(v):
+            try:
+                return [int(x) for x in v.split('.')]
+            except ValueError:
+                # If conversion fails, try to sort as strings (fallback)
+                return [x for x in v.split('.')]
+        
+        versions.sort(key=version_sort_key)
         latest_version = versions[-1]
         latest_dir = os.path.join(manifest_base, latest_version)
         

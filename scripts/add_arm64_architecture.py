@@ -209,7 +209,17 @@ def main():
         sys.exit(1)
     
     versions = [item['name'] for item in response.json() if item['type'] == 'dir']
-    versions.sort(key=lambda v: [int(x) for x in v.split('.')])
+    
+    # Sort versions and get latest
+    # Use a robust sorting key that handles both numeric versions (1.2.3) and date-based versions (2025.10.13)
+    def version_sort_key(v):
+        try:
+            return [int(x) for x in v.split('.')]
+        except ValueError:
+            # If conversion fails, try to sort as strings (fallback)
+            return [x for x in v.split('.')]
+    
+    versions.sort(key=version_sort_key)
     latest_version = versions[-1]
     
     print(f"✅ Latest version: {latest_version}")

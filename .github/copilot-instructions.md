@@ -23,6 +23,18 @@ Automated tool that monitors software packages and creates pull requests to [mic
 
 ## Checkver Configuration
 
+**Before Creating New Checkver:**
+Always inspect existing manifests on microsoft/winget-pkgs first to understand:
+- Current package structure and version format
+- Installer URL patterns and architectures supported
+- Any special requirements (MSIX signatures, installer switches, etc.)
+
+Example:
+```bash
+# View existing manifest structure
+curl -s "https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/r/RustDesk/RustDesk/1.3.2/RustDesk.RustDesk.installer.yaml"
+```
+
 **Basic Structure:**
 ```yaml
 packageIdentifier: Publisher.Package
@@ -63,22 +75,38 @@ installerUrlTemplate:
 ```
 
 **Fetching from Raw Sources:**
-For packages where version info comes from raw text files (not installers):
+For packages where version info comes from raw text files (like documentation or release notes):
 ```yaml
 # Example: Sysinternals Suite uses static download URLs
-# Version is determined by documentation date
+# Version is determined by documentation date in GitHub markdown file
 checkver:
   script: |
     $response = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/..." -UseBasicParsing
     Write-Output $response.Content
   regex: "ms\\.date: (\\d{2})/(\\d{2})/(\\d{4})"
-  replace: "${3}.${1}.${2}"
+  replace: "${3}.${1}.${2}"  # Converts MM/DD/YYYY to YYYY.MM.DD
 
 installerUrlTemplate:
   x64: "https://download.example.com/files/Package.zip"
-  # URL doesn't change, but version metadata does
+  # URL doesn't change, but version metadata from raw source is used
 ```
-The updater fetches manifests from microsoft/winget-pkgs and updates version fields only.
+The updater:
+1. Scrapes version info from raw sources (docs, changelogs, etc.)
+2. Fetches existing manifests from microsoft/winget-pkgs using `manifestPath`
+3. Copies the latest version folder and updates version strings + SHA256 hashes
+4. Creates a new version folder with updated manifests
+
+**Manifest Path Structure:**
+The `manifestPath` follows WinGet's folder structure:
+```
+manifests/{first-letter}/{publisher}/{package}/{version}/
+```
+Examples:
+- `manifests/m/Microsoft/Sysinternals/Suite/2025.10.13/`
+- `manifests/s/Seelen/SeelenUI/2.0.0/`
+- `manifests/v/VNGCorp/Zalo/24.10.2/`
+
+The path can be longer than the basic structure as needed.
 
 ## Key Concepts
 
