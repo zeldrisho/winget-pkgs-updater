@@ -198,6 +198,39 @@ def get_github_release_info(checkver_config: Dict, version: str) -> Optional[Dic
     return None
 
 
+def get_release_info_from_config(checkver_config: Dict, metadata: Dict) -> Optional[Dict]:
+    """
+    Get release notes from checkver config or metadata if defined.
+    Returns dict with releaseNotes and releaseNotesUrl, or None if not defined.
+    """
+    # First try to get from metadata (extracted from script output)
+    release_notes = metadata.get('releasenotes') if metadata else None
+    release_notes_url = metadata.get('releasenotesurl') if metadata else None
+    
+    # Fallback to checkver config
+    if not release_notes:
+        release_notes = checkver_config.get('releaseNotes')
+    if not release_notes_url:
+        release_notes_url = checkver_config.get('releaseNotesUrl')
+    
+    if not release_notes and not release_notes_url:
+        return None
+    
+    # Format with metadata placeholders if needed
+    if release_notes_url and metadata and '{' in release_notes_url:
+        release_notes_url = release_notes_url.format(**metadata)
+    
+    result = {}
+    if release_notes:
+        result['releaseNotes'] = release_notes
+    if release_notes_url:
+        result['releaseNotesUrl'] = release_notes_url
+    
+    if result:
+        print(f"✅ Release info: {result}")
+    return result if result else None
+
+
 def verify_installer_exists(url: str) -> bool:
     """Verify that the installer URL is accessible"""
     try:
@@ -267,6 +300,10 @@ def check_version(checkver_path: str) -> Optional[Dict]:
     
     # Get GitHub release info if available
     release_info = get_github_release_info(checkver_config, latest_version)
+    
+    # If no GitHub release info, try to get from config
+    if not release_info:
+        release_info = get_release_info_from_config(checkver_config, metadata)
     
     # Verify installer exists (check primary URL only for multi-arch)
     if not verify_installer_exists(installer_url):
