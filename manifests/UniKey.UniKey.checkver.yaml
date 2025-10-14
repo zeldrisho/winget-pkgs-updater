@@ -1,0 +1,72 @@
+packageIdentifier: UniKey.UniKey
+manifestPath: manifests/u/UniKey/UniKey
+checkver:
+  type: script
+  script: |
+    # Fetch the download page
+    $downloadPage = Invoke-WebRequest -Uri "https://unikey.org/download.html" -UseBasicParsing
+    
+    # UniKey has different build dates for each architecture:
+    # - x64/x86: 230919
+    # - arm64: 250531 (newer)
+    # We need to find the LATEST build date and extract RC version + builds for each arch
+    
+    $builds = @{
+        x64 = $null
+        x86 = $null
+        arm64 = $null
+    }
+    $rcVersion = $null
+    
+    # Extract x64 version
+    if ($downloadPage.Content -match 'unikey(?<rc>[\d]+[Rr][Cc]\.?\d+)-(?<build>\d+)-win64\.zip') {
+        $builds.x64 = $Matches['build']
+        $rcVersion = $Matches['rc']
+    }
+    
+    # Extract x86 version
+    if ($downloadPage.Content -match 'unikey(?<rc>[\d]+[Rr][Cc]\.?\d+)-(?<build>\d+)-win32\.zip') {
+        $builds.x86 = $Matches['build']
+        if (-not $rcVersion) { $rcVersion = $Matches['rc'] }
+    }
+    
+    # Extract arm64 version
+    if ($downloadPage.Content -match 'unikey(?<rc>[\d]+[Rr][Cc]\.?\d+)-(?<build>\d+)-arm64\.zip') {
+        $builds.arm64 = $Matches['build']
+        if (-not $rcVersion) { $rcVersion = $Matches['rc'] }
+    }
+    
+    # Get all non-null builds
+    $buildValues = $builds.Values | Where-Object { $_ -ne $null } | ForEach-Object { [int]$_ }
+    
+    if ($buildValues.Count -eq 0 -or -not $rcVersion) {
+        Write-Error "Could not find UniKey versions on download page"
+        exit 1
+    }
+    
+    # Use the latest build date for PackageVersion
+    $latestBuild = ($buildValues | Measure-Object -Maximum).Maximum
+    
+    # Convert RC version to WinGet format: 46RC2 -> 4.6
+    if ($rcVersion -match '^(\d)(\d+)') {
+        $major = $Matches[1]
+        $minor = $Matches[2] -replace '[Rr][Cc].*', ''
+        $wingetVersion = "$major.$minor.$latestBuild"
+        
+        # Output format: VERSION|RCVERSION|BUILD_X64|BUILD_X86|BUILD_ARM64
+        # This allows extracting all metadata via named groups
+        $output = "$wingetVersion|$rcVersion|$($builds.x64)|$($builds.x86)|$($builds.arm64)"
+        Write-Output $output
+    } else {
+        Write-Error "Could not parse RC version: $rcVersion"
+        exit 1
+    }
+  # Named groups: version, rcversion, buildx64, buildx86, buildarm64
+  regex: "(?P<version>[\\d\\.]+)\\|(?P<rcversion>[^\\|]+)\\|(?P<buildx64>[^\\|]+)\\|(?P<buildx86>[^\\|]+)\\|(?P<buildarm64>[^\\|]+)"
+
+# Per-architecture URL templates using custom placeholders
+installerUrlTemplate:
+  x64: "https://unikey.org/assets/release/unikey{rcversion}-{buildx64}-win64.zip"
+  x86: "https://unikey.org/assets/release/unikey{rcversion}-{buildx86}-win32.zip"
+  arm64: "https://unikey.org/assets/release/unikey{rcversion}-{buildarm64}-arm64.zip"
+

@@ -40,8 +40,12 @@ def run_powershell_script(script: str) -> Optional[str]:
         return None
 
 
-def get_latest_version_script(checkver_config: Dict) -> Optional[str]:
-    """Extract version using PowerShell script method"""
+def get_latest_version_script(checkver_config: Dict) -> Optional[tuple]:
+    """
+    Extract version using PowerShell script method.
+    Returns tuple of (version, metadata_dict) where metadata contains
+    named groups from regex match for use in URL templates.
+    """
     try:
         checkver = checkver_config.get('checkver', {})
         
@@ -69,7 +73,14 @@ def get_latest_version_script(checkver_config: Dict) -> Optional[str]:
         if match:
             version = match.group(1)
             print(f"Extracted version: {version}")
-            return version
+            
+            # Extract all named groups as metadata
+            # This allows custom placeholders like {rcversion}, {build}, etc.
+            metadata = match.groupdict()
+            if metadata:
+                print(f"Extracted metadata: {metadata}")
+            
+            return (version, metadata)
         else:
             print(f"Regex pattern '{regex_pattern}' did not match output")
             return None
@@ -112,14 +123,30 @@ def get_latest_version_from_web(check_url: str) -> Optional[str]:
         return None
 
 
-def get_installer_url(checkver_config: Dict, version: str) -> str:
-    """Generate installer URL from template"""
+def get_installer_url(checkver_config: Dict, version: str, metadata: Dict = None) -> str:
+    """
+    Generate installer URL from template.
+    Supports placeholders:
+    - {version}: Full version (e.g., 4.6.250531)
+    - {versionShort}: Version without trailing .0 (e.g., 4.6.250531 -> 4.6.250531, 2.4.4.0 -> 2.4.4)
+    - Any named group from regex metadata (e.g., {rcversion}, {build})
+    """
     template = checkver_config.get('installerUrlTemplate', '')
+    
+    if not metadata:
+        metadata = {}
     
     # Handle versionShort placeholder (e.g., 2.3.12.0 -> 2.3.12)
     version_short = re.sub(r'\.0$', '', version)
     
-    return template.format(version=version, versionShort=version_short)
+    # Build replacement dict with version, versionShort, and all metadata
+    replacements = {
+        'version': version,
+        'versionShort': version_short,
+        **metadata  # Include all custom metadata (rcversion, build, etc.)
+    }
+    
+    return template.format(**replacements)
 
 
 def get_github_release_info(checkver_config: Dict, version: str) -> Optional[Dict]:
@@ -189,7 +216,18 @@ def check_version(checkver_path: str) -> Optional[Dict]:
     print(f"Checking for updates: {package_id}")
     
     # Try script-based checkver first
-    latest_version = get_latest_version_script(checkver_config)
+    version_result = get_latest_version_script(checkver_config)
+    metadata = {}
+    
+    if version_result:
+        # Script method returns (version, metadata) tuple
+        if isinstance(version_result, tuple):
+            latest_version, metadata = version_result
+        else:
+            # Fallback for old behavior
+            latest_version = version_result
+    else:
+        latest_version = None
     
     # Fallback to web-based checkver if script method didn't work
     if not latest_version and 'checkUrl' in checkver_config:
@@ -203,14 +241,34 @@ def check_version(checkver_path: str) -> Optional[Dict]:
     
     print(f"Latest version found: {latest_version}")
     
-    # Get installer URL
-    installer_url = get_installer_url(checkver_config, latest_version)
-    print(f"Installer URL: {installer_url}")
+    # Get installer URL(s)
+    # Check if installerUrlTemplate is dict (per-architecture) or string (single)
+    installer_url_template = checkver_config.get('installerUrlTemplate', '')
+    
+    if isinstance(installer_url_template, dict):
+        # Multi-architecture support
+        print("Detected multi-architecture URL templates")
+        installer_urls = {}
+        for arch, template in installer_url_template.items():
+            # Temporarily set template for this architecture
+            temp_config = checkver_config.copy()
+            temp_config['installerUrlTemplate'] = template
+            url = get_installer_url(temp_config, latest_version, metadata)
+            installer_urls[arch] = url
+            print(f"  {arch}: {url}")
+        
+        # Use x64 as primary for backward compatibility
+        installer_url = installer_urls.get('x64', list(installer_urls.values())[0])
+    else:
+        # Single architecture (traditional)
+        installer_url = get_installer_url(checkver_config, latest_version, metadata)
+        installer_urls = None
+        print(f"Installer URL: {installer_url}")
     
     # Get GitHub release info if available
     release_info = get_github_release_info(checkver_config, latest_version)
     
-    # Verify installer exists
+    # Verify installer exists (check primary URL only for multi-arch)
     if not verify_installer_exists(installer_url):
         print("Warning: Installer URL is not accessible")
         # Continue anyway - the URL might become accessible later
@@ -218,9 +276,17 @@ def check_version(checkver_path: str) -> Optional[Dict]:
     result = {
         'packageIdentifier': package_id,
         'version': latest_version,
-        'installerUrl': installer_url,
+        'installerUrl': installer_url,  # Primary URL for backward compatibility
         'checkver_config': checkver_config
     }
+    
+    # Add multi-architecture URLs if available
+    if installer_urls:
+        result['installerUrls'] = installer_urls
+    
+    # Add metadata for custom placeholders if available
+    if metadata:
+        result['metadata'] = metadata
     
     # Add release info if available
     if release_info:

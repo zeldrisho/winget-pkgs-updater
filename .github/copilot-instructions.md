@@ -47,6 +47,58 @@ installerUrlTemplate: "https://example.com/{version}/installer.exe"
 **Version Template Variables:**
 - `{version}` - Full version (e.g., 2.3.12.0)
 - `{versionShort}` - Version without trailing .0 (e.g., 2.3.12)
+- **Custom placeholders** - Any named group from regex (e.g., `{rcversion}`, `{build}`, `{buildx64}`)
+
+### Advanced: Custom Metadata & Multi-Architecture URLs
+
+**Custom Metadata Extraction:**
+PowerShell scripts can output structured data parsed via Python named groups:
+
+```yaml
+checkver:
+  type: script
+  script: |
+    # Output format: VERSION|METADATA1|METADATA2|...
+    Write-Output "4.6.250531|46RC2|230919|230919|250531"
+  # Use Python named groups: (?P<name>pattern)
+  regex: "(?P<version>[\\d\\.]+)\\|(?P<rcversion>[^\\|]+)\\|(?P<buildx64>[^\\|]+)\\|(?P<buildx86>[^\\|]+)\\|(?P<buildarm64>[^\\|]+)"
+```
+
+**Multi-Architecture URL Templates:**
+For packages with architecture-specific URLs (different build dates, versions):
+
+```yaml
+installerUrlTemplate:
+  x64: "https://example.com/app{rcversion}-{buildx64}-win64.zip"
+  x86: "https://example.com/app{rcversion}-{buildx86}-win32.zip"
+  arm64: "https://example.com/app{rcversion}-{buildarm64}-arm64.zip"
+```
+
+**Example: UniKey Package**
+UniKey has different build dates per architecture (x64/x86: 230919, arm64: 250531):
+- Script outputs: `4.6.250531|46RC2|230919|230919|250531`
+- Generates correct URLs: `unikey46RC2-230919-win64.zip`, `unikey46RC2-250531-arm64.zip`
+- PackageVersion uses latest build: `4.6.250531`
+
+**check_version.py output:**
+```json
+{
+  "version": "4.6.250531",
+  "installerUrl": "...-win64.zip",      // Primary URL (x64)
+  "installerUrls": {                    // Multi-arch URLs
+    "x64": "...-win64.zip",
+    "x86": "...-win32.zip",
+    "arm64": "...-arm64.zip"
+  },
+  "metadata": {                         // Custom metadata
+    "rcversion": "46RC2",
+    "buildx64": "230919",
+    "buildarm64": "250531"
+  }
+}
+```
+
+**Important:** Python uses `(?P<name>...)` for named groups, NOT PowerShell's `(?<name>...)` syntax.
 
 ### Manifest Update Strategy
 
@@ -130,3 +182,13 @@ gh auth login                            # GitHub CLI for PR operations
 3. **Version already exists** - Workflow checks microsoft/winget-pkgs before creating PR
 4. **Fork not found** - Verify WINGET_PKGS_TOKEN has access to user's fork and WINGET_FORK_REPO is correct format (username/winget-pkgs)
 5. **Git fetch upstream fails** - Ensure fork exists and token has proper permissions
+6. **Regex named groups error** - Use Python syntax `(?P<name>...)` not PowerShell `(?<name>...)`
+
+## Special Cases
+
+### UniKey Package
+- **Issue:** Each architecture has different build dates (x64/x86: 230919, arm64: 250531)
+- **Solution:** Custom metadata extraction + per-architecture URL templates
+- **Config:** `manifests/UniKey.UniKey.checkver.yaml`
+- **Pattern:** Extract RC version (46RC2) and per-arch builds, use in URL templates
+- **Note:** update_manifest.py currently only handles single installerUrl (enhancement needed for full multi-arch support)
