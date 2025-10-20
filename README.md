@@ -35,6 +35,16 @@ In your forked repository:
 
 - Go to Actions → Update WinGet Packages → Run workflow
 
+## Monitored Packages
+
+- **RustDesk.RustDesk** - Remote Desktop Software
+- **Seelen.SeelenUI** - Windows Desktop Customization Tool
+- **Stremio.StremioService** - Media Streaming Service
+- **VNGCorp.Zalo** - Vietnamese Messaging Platform
+- **Microsoft.Sysinternals.Suite** - Windows System Utilities Collection
+- **Roblox.Roblox** - Online Gaming Platform
+- **UniKey.UniKey** - Vietnamese Keyboard Input
+
 ## Adding Packages
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guide on adding new packages.
@@ -61,14 +71,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guide on adding new packages
 | 🟢 OPEN | Skip - Already submitted |
 | 🟣 MERGED | Skip - Already in winget-pkgs |
 | ⚪ CLOSED | Create new PR - Allow retry |
-
-## Supported Formats
-
-| Format | Extension | InstallerSha256 | SignatureSha256 |
-|--------|-----------|----------------|----------------|
-| EXE | `.exe` | ✅ | - |
-| MSIX | `.msix` | ✅ | ✅ |
-| MSI | `.msi` | ✅ | - |
 
 ## Requirements
 

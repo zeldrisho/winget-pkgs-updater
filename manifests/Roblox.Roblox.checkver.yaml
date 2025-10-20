@@ -1,0 +1,20 @@
+packageIdentifier: Roblox.Roblox
+manifestPath: manifests/r/Roblox/Roblox
+checkver:
+  type: script
+  script: |
+    $response = Invoke-WebRequest -Uri "https://clientsettingscdn.roblox.com/v1/client-version/WindowsPlayer" -UseBasicParsing
+    $json = $response.Content | ConvertFrom-Json
+    
+    $version = $json.version
+    $clientVersionUpload = $json.clientVersionUpload
+    
+    if ([string]::IsNullOrEmpty($version) -or [string]::IsNullOrEmpty($clientVersionUpload)) {
+        Write-Error "Failed to get version or clientVersionUpload"
+        exit 1
+    }
+    
+    # Output in format: version|clientVersionUpload
+    Write-Output "$version|$clientVersionUpload"
+  regex: "(?P<version>[\\d\\.]+)\\|(?P<clientVersionUpload>version-[a-f0-9]+)"
+installerUrlTemplate: "https://setup.rbxcdn.com/{clientVersionUpload}-RobloxPlayerInstaller.exe"
