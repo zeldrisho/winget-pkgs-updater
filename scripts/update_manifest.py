@@ -474,7 +474,8 @@ def process_template_and_create_version(
     release_notes: Optional[str],
     release_notes_url: Optional[str],
     arch_hashes: Optional[Dict[str, str]],
-    installer_urls: Optional[Dict[str, str]]
+    installer_urls: Optional[Dict[str, str]],
+    installer_url: Optional[str]
 ) -> bool:
     """
     Copy and update manifest files from template to new version.
@@ -688,7 +689,7 @@ def update_manifests(
                             return process_template_and_create_version(
                                 repo_dir, manifest_path, version, latest_dir, latest_version,
                                 sha256, signature_sha256, release_notes, release_notes_url,
-                                arch_hashes, installer_urls
+                                arch_hashes, installer_urls, installer_url
                             )
                         except Exception as e:
                             print(f"Error fetching template from commit {template_commit}: {e}")
@@ -726,7 +727,7 @@ def update_manifests(
             return process_template_and_create_version(
                 repo_dir, manifest_path, version, latest_dir, latest_version,
                 sha256, signature_sha256, release_notes, release_notes_url,
-                arch_hashes, installer_urls
+                arch_hashes, installer_urls, installer_url
             )
         
     except Exception as e:
