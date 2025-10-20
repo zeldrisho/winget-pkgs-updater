@@ -430,6 +430,83 @@ def add_missing_architectures(content: str, arch_hashes: Dict[str, str], install
     return '\n'.join(lines)
 
 
+def process_template_and_create_version(
+    repo_dir: str,
+    manifest_path: str,
+    version: str,
+    latest_dir: str,
+    latest_version: str,
+    sha256: Optional[str],
+    signature_sha256: Optional[str],
+    release_notes: Optional[str],
+    release_notes_url: Optional[str],
+    arch_hashes: Optional[Dict[str, str]],
+    installer_urls: Optional[Dict[str, str]]
+) -> bool:
+    """
+    Copy and update manifest files from template to new version.
+    This function is extracted to allow processing template from temporary directory.
+    """
+    try:
+        version_dir = os.path.join(repo_dir, manifest_path, version)
+        
+        print(f"Copying from latest version: {latest_version}")
+        
+        # Create new version directory
+        os.makedirs(version_dir, exist_ok=True)
+        
+        # Copy and update each manifest file
+        for filename in os.listdir(latest_dir):
+            if filename.endswith('.yaml'):
+                src_file = os.path.join(latest_dir, filename)
+                dst_file = os.path.join(version_dir, filename)
+                
+                with open(src_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Determine if this is installer or locale file
+                is_locale_file = '.locale.' in filename
+                is_installer_file = '.installer.' in filename
+                
+                # Update content with hashes and optionally release notes
+                if is_locale_file and release_notes:
+                    # Update locale file with release notes
+                    updated_content = update_manifest_content(
+                        content, version, sha256, signature_sha256, 
+                        release_notes, release_notes_url, arch_hashes
+                    )
+                elif is_installer_file and arch_hashes:
+                    # Update installer file with multi-arch hashes
+                    updated_content = update_manifest_content(
+                        content, version, sha256, signature_sha256,
+                        None, None, arch_hashes
+                    )
+                    # Add missing architectures (e.g., arm64 if not in old version)
+                    if installer_urls:
+                        updated_content = add_missing_architectures(
+                            updated_content, arch_hashes, installer_urls
+                        )
+                else:
+                    # Update other files without release notes or multi-arch
+                    updated_content = update_manifest_content(
+                        content, version, sha256, signature_sha256,
+                        None, None, arch_hashes
+                    )
+                
+                with open(dst_file, 'w', encoding='utf-8') as f:
+                    f.write(updated_content)
+                
+                print(f"Updated: {filename}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error processing template: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def update_manifests(
     repo_dir: str,
     manifest_path: str,
@@ -539,36 +616,47 @@ def update_manifests(
                     print(f"No existing versions found on master branch")
                     print(f"Using template version {template_version} from commit {template_commit}")
                     
-                    # Fetch manifest from specific commit
-                    template_dir = os.path.join(manifest_base, template_version)
-                    os.makedirs(template_dir, exist_ok=True)
-                    
-                    # Fetch all yaml files from the template commit
-                    api_url = f"https://api.github.com/repos/microsoft/winget-pkgs/contents/{manifest_path}/{template_version}?ref={template_commit}"
-                    try:
-                        response = requests.get(api_url, timeout=30)
-                        response.raise_for_status()
-                        files = response.json()
+                    # Fetch manifest from specific commit to TEMPORARY directory (outside repo)
+                    # This ensures template files are NOT committed to Git
+                    with tempfile.TemporaryDirectory() as temp_template_dir:
+                        template_dir = os.path.join(temp_template_dir, template_version)
+                        os.makedirs(template_dir, exist_ok=True)
                         
-                        for file_info in files:
-                            if file_info['name'].endswith('.yaml'):
-                                file_content = fetch_github_file(
-                                    'microsoft/winget-pkgs',
-                                    f"{manifest_path}/{template_version}/{file_info['name']}",
-                                    template_commit
-                                )
-                                if file_content:
-                                    with open(os.path.join(template_dir, file_info['name']), 'w', encoding='utf-8') as f:
-                                        f.write(file_content)
-                                    print(f"  Downloaded template: {file_info['name']}")
-                        
-                        versions = [template_version]
-                        latest_version = template_version
-                        latest_dir = template_dir
-                        print(f"✅ Template version {template_version} fetched successfully")
-                    except Exception as e:
-                        print(f"Error fetching template from commit {template_commit}: {e}")
-                        return False
+                        # Fetch all yaml files from the template commit
+                        api_url = f"https://api.github.com/repos/microsoft/winget-pkgs/contents/{manifest_path}/{template_version}?ref={template_commit}"
+                        try:
+                            response = requests.get(api_url, timeout=30)
+                            response.raise_for_status()
+                            files = response.json()
+                            
+                            for file_info in files:
+                                if file_info['name'].endswith('.yaml'):
+                                    file_content = fetch_github_file(
+                                        'microsoft/winget-pkgs',
+                                        f"{manifest_path}/{template_version}/{file_info['name']}",
+                                        template_commit
+                                    )
+                                    if file_content:
+                                        with open(os.path.join(template_dir, file_info['name']), 'w', encoding='utf-8') as f:
+                                            f.write(file_content)
+                                        print(f"  Downloaded template: {file_info['name']}")
+                            
+                            versions = [template_version]
+                            latest_version = template_version
+                            latest_dir = template_dir
+                            print(f"✅ Template version {template_version} fetched successfully")
+                            print(f"   (Template stored in temporary directory, will not be committed)")
+                            
+                            # Process the template immediately within this context
+                            # so latest_dir remains valid
+                            return process_template_and_create_version(
+                                repo_dir, manifest_path, version, latest_dir, latest_version,
+                                sha256, signature_sha256, release_notes, release_notes_url,
+                                arch_hashes, installer_urls
+                            )
+                        except Exception as e:
+                            print(f"Error fetching template from commit {template_commit}: {e}")
+                            return False
                 else:
                     print("No existing versions found")
                     return False
@@ -597,56 +685,13 @@ def update_manifests(
             versions.sort(key=version_sort_key)
             latest_version = versions[-1]
             latest_dir = os.path.join(manifest_base, latest_version)
-        
-        print(f"Copying from latest version: {latest_version}")
-        
-        # Create new version directory
-        os.makedirs(version_dir, exist_ok=True)
-        
-        # Copy and update each manifest file
-        for filename in os.listdir(latest_dir):
-            if filename.endswith('.yaml'):
-                src_file = os.path.join(latest_dir, filename)
-                dst_file = os.path.join(version_dir, filename)
-                
-                with open(src_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
-                # Determine if this is installer or locale file
-                is_locale_file = '.locale.' in filename
-                is_installer_file = '.installer.' in filename
-                
-                # Update content with hashes and optionally release notes
-                if is_locale_file and release_notes:
-                    # Update locale file with release notes
-                    updated_content = update_manifest_content(
-                        content, version, sha256, signature_sha256, 
-                        release_notes, release_notes_url, arch_hashes
-                    )
-                elif is_installer_file and arch_hashes:
-                    # Update installer file with multi-arch hashes
-                    updated_content = update_manifest_content(
-                        content, version, sha256, signature_sha256,
-                        None, None, arch_hashes
-                    )
-                    # Add missing architectures (e.g., arm64 if not in old version)
-                    if installer_urls:
-                        updated_content = add_missing_architectures(
-                            updated_content, arch_hashes, installer_urls
-                        )
-                else:
-                    # Update other files without release notes or multi-arch
-                    updated_content = update_manifest_content(
-                        content, version, sha256, signature_sha256,
-                        None, None, arch_hashes
-                    )
-                
-                with open(dst_file, 'w', encoding='utf-8') as f:
-                    f.write(updated_content)
-                
-                print(f"Updated: {filename}")
-        
-        return True
+            
+            # Process template from repo directory (normal case)
+            return process_template_and_create_version(
+                repo_dir, manifest_path, version, latest_dir, latest_version,
+                sha256, signature_sha256, release_notes, release_notes_url,
+                arch_hashes, installer_urls
+            )
         
     except Exception as e:
         print(f"Error updating manifests: {e}", file=sys.stderr)
