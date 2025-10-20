@@ -168,10 +168,12 @@ def update_manifest_content(
     signature_sha256: Optional[str] = None,
     release_notes: Optional[str] = None,
     release_notes_url: Optional[str] = None,
-    arch_hashes: Optional[Dict[str, str]] = None
+    arch_hashes: Optional[Dict[str, str]] = None,
+    installer_urls: Optional[Dict[str, str]] = None,
+    installer_url: Optional[str] = None
 ) -> str:
     """
-    Update version and SHA256 in manifest content.
+    Update version, InstallerUrl, and SHA256 in manifest content.
     
     Strategy:
     1. Extract old version from PackageVersion field
@@ -209,6 +211,37 @@ def update_manifest_content(
             if short_count > 0:
                 content = content.replace(old_short, new_short)
                 print(f"  ✅ Also replaced {short_count} occurrences of short version {old_short} with {new_short}")
+    
+    # Update InstallerUrl - handle both single and multi-architecture
+    if installer_urls:
+        # Multi-architecture: update URL for each architecture
+        lines = content.split('\n')
+        updated_lines = []
+        current_arch = None
+        
+        for line in lines:
+            # Track current architecture
+            if re.match(r'^\s*-\s*Architecture:\s*(\w+)', line):
+                match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
+                current_arch = match.group(1)
+            
+            # Update URL for current architecture
+            if 'InstallerUrl:' in line and current_arch and current_arch in installer_urls:
+                indent = len(line) - len(line.lstrip())
+                line = ' ' * indent + f'InstallerUrl: {installer_urls[current_arch]}'
+                print(f"  ✅ Updated {current_arch} InstallerUrl")
+            
+            updated_lines.append(line)
+        
+        content = '\n'.join(updated_lines)
+    elif installer_url:
+        # Single architecture: replace the entire InstallerUrl
+        content = re.sub(
+            r'InstallerUrl:\s*https?://[^\s]+',
+            f'InstallerUrl: {installer_url}',
+            content
+        )
+        print(f"  ✅ Updated InstallerUrl")
     
     # Update InstallerSha256 - support multi-architecture
     if arch_hashes:
@@ -473,13 +506,15 @@ def process_template_and_create_version(
                     # Update locale file with release notes
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256, 
-                        release_notes, release_notes_url, arch_hashes
+                        release_notes, release_notes_url, arch_hashes,
+                        installer_urls, installer_url
                     )
                 elif is_installer_file and arch_hashes:
                     # Update installer file with multi-arch hashes
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256,
-                        None, None, arch_hashes
+                        None, None, arch_hashes,
+                        installer_urls, installer_url
                     )
                     # Add missing architectures (e.g., arm64 if not in old version)
                     if installer_urls:
@@ -490,7 +525,8 @@ def process_template_and_create_version(
                     # Update other files without release notes or multi-arch
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256,
-                        None, None, arch_hashes
+                        None, None, arch_hashes,
+                        installer_urls, installer_url
                     )
                 
                 with open(dst_file, 'w', encoding='utf-8') as f:
