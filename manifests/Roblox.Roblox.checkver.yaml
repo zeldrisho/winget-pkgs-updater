@@ -1,5 +1,7 @@
 packageIdentifier: Roblox.Roblox
 manifestPath: manifests/r/Roblox/Roblox
+templateVersion: "1.6.2.6660608"  # Template from commit f4b71b38553b3f3ec6103d93dee738568c5484f0
+templateCommit: "f4b71b38553b3f3ec6103d93dee738568c5484f0"  # Fallback when no versions exist on master
 checkver:
   type: script
   script: |

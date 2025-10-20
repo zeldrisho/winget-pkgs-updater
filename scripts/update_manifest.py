@@ -514,30 +514,89 @@ def update_manifests(
         
         versions = [d for d in os.listdir(manifest_base) if os.path.isdir(os.path.join(manifest_base, d))]
         if not versions:
-            print("No existing versions found")
-            return False
-        
-        # Sort versions and get latest
-        # Use a robust sorting key that handles:
-        # - Numeric versions: 1.2.3
-        # - Date-based versions with dots: 2025.10.13
-        # - Date-based versions with hyphens: 2025-09-16
-        def version_sort_key(v):
-            parts = []
-            # Split by both dots and hyphens to handle all formats
-            for x in re.split(r'[.\-]', v):
-                try:
-                    # Try to convert to int for numeric comparison
-                    parts.append(int(x))
-                except ValueError:
-                    # If it contains non-numeric characters, treat as 0
-                    # This ensures consistent type (all ints)
-                    parts.append(0)
-            return parts
-        
-        versions.sort(key=version_sort_key)
-        latest_version = versions[-1]
-        latest_dir = os.path.join(manifest_base, latest_version)
+            # Try to use template from specific commit if available
+            config_file = None
+            for f in ['manifests/*.checkver.yaml', 'manifests/**/*.checkver.yaml']:
+                import glob
+                matches = glob.glob(f)
+                for match in matches:
+                    with open(match, 'r') as cf:
+                        checkver = yaml.safe_load(cf)
+                        if checkver.get('packageIdentifier') == package_id:
+                            config_file = match
+                            break
+                if config_file:
+                    break
+            
+            if config_file:
+                with open(config_file, 'r') as f:
+                    checkver_config = yaml.safe_load(f)
+                
+                template_commit = checkver_config.get('templateCommit')
+                template_version = checkver_config.get('templateVersion')
+                
+                if template_commit and template_version:
+                    print(f"No existing versions found on master branch")
+                    print(f"Using template version {template_version} from commit {template_commit}")
+                    
+                    # Fetch manifest from specific commit
+                    template_dir = os.path.join(manifest_base, template_version)
+                    os.makedirs(template_dir, exist_ok=True)
+                    
+                    # Fetch all yaml files from the template commit
+                    api_url = f"https://api.github.com/repos/microsoft/winget-pkgs/contents/{manifest_path}/{template_version}?ref={template_commit}"
+                    try:
+                        response = requests.get(api_url, timeout=30)
+                        response.raise_for_status()
+                        files = response.json()
+                        
+                        for file_info in files:
+                            if file_info['name'].endswith('.yaml'):
+                                file_content = fetch_github_file(
+                                    'microsoft/winget-pkgs',
+                                    f"{manifest_path}/{template_version}/{file_info['name']}",
+                                    template_commit
+                                )
+                                if file_content:
+                                    with open(os.path.join(template_dir, file_info['name']), 'w', encoding='utf-8') as f:
+                                        f.write(file_content)
+                                    print(f"  Downloaded template: {file_info['name']}")
+                        
+                        versions = [template_version]
+                        latest_version = template_version
+                        latest_dir = template_dir
+                        print(f"✅ Template version {template_version} fetched successfully")
+                    except Exception as e:
+                        print(f"Error fetching template from commit {template_commit}: {e}")
+                        return False
+                else:
+                    print("No existing versions found")
+                    return False
+            else:
+                print("No existing versions found")
+                return False
+        else:
+            # Sort versions and get latest (only if we didn't already set it from template)
+            # Use a robust sorting key that handles:
+            # - Numeric versions: 1.2.3
+            # - Date-based versions with dots: 2025.10.13
+            # - Date-based versions with hyphens: 2025-09-16
+            def version_sort_key(v):
+                parts = []
+                # Split by both dots and hyphens to handle all formats
+                for x in re.split(r'[.\-]', v):
+                    try:
+                        # Try to convert to int for numeric comparison
+                        parts.append(int(x))
+                    except ValueError:
+                        # If it contains non-numeric characters, treat as 0
+                        # This ensures consistent type (all ints)
+                        parts.append(0)
+                return parts
+            
+            versions.sort(key=version_sort_key)
+            latest_version = versions[-1]
+            latest_dir = os.path.join(manifest_base, latest_version)
         
         print(f"Copying from latest version: {latest_version}")
         
