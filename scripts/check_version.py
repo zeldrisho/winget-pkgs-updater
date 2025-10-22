@@ -78,6 +78,10 @@ def get_latest_version_github(checkver_config: Dict) -> Optional[tuple]:
         print(f"Fetching latest release from: {api_url}")
         
         headers = {'User-Agent': 'winget-pkgs-updater'}
+        # Add GitHub token if available to avoid rate limiting
+        github_token = os.getenv('GITHUB_TOKEN') or os.getenv('WINGET_PKGS_TOKEN')
+        if github_token:
+            headers['Authorization'] = f'token {github_token}'
         response = requests.get(api_url, headers=headers, timeout=30)
         
         if response.status_code != 200:
@@ -275,6 +279,10 @@ def get_github_release_info(checkver_config: Dict, version: str) -> Optional[Dic
         print(f"Fetching release info from: {api_url}")
         
         headers = {'User-Agent': 'winget-pkgs-updater'}
+        # Add GitHub token if available to avoid rate limiting
+        github_token = os.getenv('GITHUB_TOKEN') or os.getenv('WINGET_PKGS_TOKEN')
+        if github_token:
+            headers['Authorization'] = f'token {github_token}'
         response = requests.get(api_url, headers=headers, timeout=30)
         
         if response.status_code == 200:

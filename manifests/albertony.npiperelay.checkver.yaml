@@ -3,8 +3,11 @@ manifestPath: manifests/a/albertony/npiperelay
 checkver:
   type: github
   repo: albertony/npiperelay
-  fetchReleaseNotes: true
-  fetchReleaseNotesUrl: true
+
+updateMetadata:
+  - ReleaseNotes
+  - ReleaseNotesUrl
+
 installerUrlTemplate:
   x86: "https://github.com/albertony/npiperelay/releases/download/v{version}/npiperelay_windows_386.zip"
   x64: "https://github.com/albertony/npiperelay/releases/download/v{version}/npiperelay_windows_amd64.zip"

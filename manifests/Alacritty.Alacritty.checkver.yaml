@@ -4,21 +4,13 @@ packageIdentifier: Alacritty.Alacritty
 manifestPath: manifests/a/Alacritty/Alacritty
 
 checkver:
-  type: script
-  script: |
-    # Get latest stable release from GitHub API
-    # https://github.com/alacritty/alacritty
-    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/alacritty/alacritty/releases/latest"
-    if ($response.tag_name) {
-      # Remove 'v' prefix (e.g., v0.16.0 -> 0.16.0)
-      $version = $response.tag_name -replace '^v', ''
-      $releaseNotes = $response.body
-      $releaseNotesUrl = $response.html_url
-      
-      # Output format: version|releaseNotesUrl|releaseNotes
-      Write-Output "$version|$releaseNotesUrl|$releaseNotes"
-    }
-  regex: "(?P<version>[\\d\\.]+)\\|(?P<releaseNotesUrl>[^\\|]+)\\|(?P<releaseNotes>.*)"
+  type: github
+  repo: alacritty/alacritty
+  regex: "v?([\\d\\.]+)"
+
+updateMetadata:
+  - ReleaseNotes
+  - ReleaseNotesUrl
 
 # Alacritty installer URL from GitHub releases
 # Uses MSI installer format: Alacritty-v{version}-installer.msi
