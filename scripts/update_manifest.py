@@ -355,24 +355,26 @@ def update_manifest_content(
                     in_installers_section = False
             
             # Update ProductCode in different contexts
+            # Note: ProductCode must be quoted in YAML (like UpgradeCode)
             if 'ProductCode:' in line:
                 indent = len(line) - len(line.lstrip())
                 
                 if in_apps_features and 'default' in product_codes:
                     # ProductCode in AppsAndFeaturesEntries (single-arch)
-                    line = ' ' * indent + f'- ProductCode: {product_codes["default"]}'
+                    # Use single quotes to match UpgradeCode format
+                    line = ' ' * indent + f"- ProductCode: '{product_codes['default']}'"
                     print(f"  ✅ Updated ProductCode in AppsAndFeaturesEntries")
                 elif in_installers_section and current_arch and current_arch in product_codes:
                     # ProductCode for specific architecture in Installers section
-                    line = ' ' * indent + f'ProductCode: {product_codes[current_arch]}'
+                    line = ' ' * indent + f"ProductCode: '{product_codes[current_arch]}'"
                     print(f"  ✅ Updated {current_arch} ProductCode in Installers")
                 elif not in_apps_features and not in_installers_section and 'default' in product_codes:
                     # Top-level ProductCode (single-arch, before Installers section)
-                    line = ' ' * indent + f'ProductCode: {product_codes["default"]}'
+                    line = ' ' * indent + f"ProductCode: '{product_codes['default']}'"
                     print(f"  ✅ Updated top-level ProductCode")
                 elif current_arch and current_arch in product_codes:
                     # Fallback for architecture-specific ProductCode
-                    line = ' ' * indent + f'ProductCode: {product_codes[current_arch]}'
+                    line = ' ' * indent + f"ProductCode: '{product_codes[current_arch]}'"
                     print(f"  ✅ Updated {current_arch} ProductCode")
             
             updated_lines.append(line)
