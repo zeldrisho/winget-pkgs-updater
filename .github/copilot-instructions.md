@@ -24,7 +24,7 @@ Automated tool that monitors software packages and creates pull requests to [mic
 ## Checkver Configuration
 
 **Before Creating New Checkver:**
-Always inspect existing manifests on microsoft/winget-pkgs first to understand:
+Always inspect existing manifests (latest version) on microsoft/winget-pkgs first to understand:
 - Current package structure and version format
 - Installer URL patterns and architectures supported
 - Any special requirements (MSIX signatures, installer switches, etc.)

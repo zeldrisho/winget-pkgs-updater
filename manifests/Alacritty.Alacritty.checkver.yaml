@@ -14,4 +14,6 @@ updateMetadata:
 
 # Alacritty installer URL from GitHub releases
 # Uses MSI installer format: Alacritty-v{version}-installer.msi
+# Note: MSI ProductCode is automatically extracted by update_manifest.py
+# Static properties (UpgradeCode, InstallationMetadata) are preserved from previous version
 installerUrlTemplate: "https://github.com/alacritty/alacritty/releases/download/v{version}/Alacritty-v{version}-installer.msi"
