@@ -40,6 +40,90 @@ def run_powershell_script(script: str) -> Optional[str]:
         return None
 
 
+def get_latest_version_github(checkver_config: Dict) -> Optional[tuple]:
+    """
+    Get latest version from GitHub releases.
+    Returns tuple of (version, metadata_dict) where metadata can contain
+    release notes and URL.
+    
+    Supports two config formats:
+    1. checkver: { type: "github", repo: "owner/repo", ... }
+    2. checkver: "github" with github: { owner: "...", repo: "..." }
+    """
+    try:
+        checkver = checkver_config.get('checkver', {})
+        
+        # Support simple string format: checkver: "github"
+        if checkver == 'github':
+            github_config = checkver_config.get('github', {})
+            owner = github_config.get('owner', '')
+            repo = github_config.get('repo', '')
+            if not owner or not repo:
+                print("Missing 'owner' or 'repo' in github config")
+                return None
+            repo_full = f"{owner}/{repo}"
+            regex_pattern = github_config.get('regex', 'v?([\\d\\.]+)')
+        # Support dict format: checkver: { type: "github", repo: "owner/repo" }
+        elif isinstance(checkver, dict) and checkver.get('type') == 'github':
+            repo_full = checkver.get('repo', '')
+            if not repo_full:
+                print("Missing 'repo' field in GitHub checkver config")
+                return None
+            regex_pattern = checkver.get('regex', 'v?([\\d\\.]+)')
+        else:
+            return None
+        
+        # Fetch latest release from GitHub API
+        api_url = f"https://api.github.com/repos/{repo_full}/releases/latest"
+        print(f"Fetching latest release from: {api_url}")
+        
+        headers = {'User-Agent': 'winget-pkgs-updater'}
+        response = requests.get(api_url, headers=headers, timeout=30)
+        
+        if response.status_code != 200:
+            print(f"Error: GitHub API returned status {response.status_code}")
+            return None
+        
+        release_data = response.json()
+        tag_name = release_data.get('tag_name', '')
+        
+        # Extract version using regex (supports removing 'v' prefix)
+        match = re.search(regex_pattern, tag_name)
+        if match:
+            version = match.group(1)
+        else:
+            # Fallback: remove 'v' prefix if present
+            version = tag_name.lstrip('v')
+        
+        print(f"Latest version found: {version}")
+        
+        # Build metadata dict
+        metadata = {}
+        
+        # Check if updateMetadata is defined
+        update_metadata = checkver_config.get('updateMetadata', [])
+        
+        # Add release notes if requested
+        if 'ReleaseNotes' in update_metadata:
+            release_notes = release_data.get('body', '').strip()
+            if release_notes:
+                metadata['releasenotes'] = release_notes
+                print(f"✅ Fetched release notes ({len(release_notes)} chars)")
+        
+        # Add release notes URL if requested
+        if 'ReleaseNotesUrl' in update_metadata:
+            release_url = release_data.get('html_url', '')
+            if release_url:
+                metadata['releasenotesurl'] = release_url
+                print(f"✅ Fetched release notes URL: {release_url}")
+        
+        return (version, metadata)
+        
+    except Exception as e:
+        print(f"Error in GitHub-based version check: {e}", file=sys.stderr)
+        return None
+
+
 def get_latest_version_script(checkver_config: Dict) -> Optional[tuple]:
     r"""
     Extract version using PowerShell script method.
@@ -263,12 +347,16 @@ def check_version(checkver_path: str) -> Optional[Dict]:
     
     print(f"Checking for updates: {package_id}")
     
-    # Try script-based checkver first
-    version_result = get_latest_version_script(checkver_config)
+    # Try GitHub-based checkver first
+    version_result = get_latest_version_github(checkver_config)
     metadata = {}
     
+    # If not GitHub, try script-based checkver
+    if not version_result:
+        version_result = get_latest_version_script(checkver_config)
+    
     if version_result:
-        # Script method returns (version, metadata) tuple
+        # Methods return (version, metadata) tuple
         if isinstance(version_result, tuple):
             latest_version, metadata = version_result
         else:
@@ -277,7 +365,7 @@ def check_version(checkver_path: str) -> Optional[Dict]:
     else:
         latest_version = None
     
-    # Fallback to web-based checkver if script method didn't work
+    # Fallback to web-based checkver if other methods didn't work
     if not latest_version and 'checkUrl' in checkver_config:
         check_url = checkver_config['checkUrl']
         print(f"Falling back to web-based check URL: {check_url}")

@@ -35,16 +35,6 @@ In your forked repository:
 
 - Go to Actions → Update WinGet Packages → Run workflow
 
-## Monitored Packages
-
-- **RustDesk.RustDesk** - Remote Desktop Software
-- **Seelen.SeelenUI** - Windows Desktop Customization Tool
-- **Stremio.StremioService** - Media Streaming Service
-- **VNGCorp.Zalo** - Vietnamese Messaging Platform
-- **Microsoft.Sysinternals.Suite** - Windows System Utilities Collection
-- **Roblox.Roblox** - Online Gaming Platform
-- **UniKey.UniKey** - Vietnamese Keyboard Input
-
 ## Adding Packages
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guide on adding new packages.

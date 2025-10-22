@@ -148,6 +148,44 @@ if ($appxFile) {{
         return None
 
 
+def extract_product_code_from_msi(msi_path: str) -> Optional[str]:
+    """
+    Extract ProductCode from MSI file using msitools.
+    Returns ProductCode in format {XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}
+    Returns None if extraction fails.
+    """
+    try:
+        # Use msiinfo to extract Property table from MSI
+        result = subprocess.run(
+            ['msiinfo', 'export', msi_path, 'Property'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode == 0 and result.stdout:
+            # Parse output to find ProductCode
+            # Format: ProductCode\t{GUID}
+            for line in result.stdout.split('\n'):
+                if line.startswith('ProductCode'):
+                    parts = line.split('\t')
+                    if len(parts) >= 2:
+                        product_code = parts[1].strip()
+                        print(f"  Extracted ProductCode: {product_code}")
+                        return product_code
+        else:
+            print(f"  Warning: Could not extract ProductCode: {result.stderr}")
+            return None
+            
+    except FileNotFoundError:
+        print("  Warning: msitools not installed. Cannot extract ProductCode.")
+        print("  Install with: sudo apt-get install msitools")
+        return None
+    except Exception as e:
+        print(f"  Warning: Error extracting ProductCode: {e}")
+        return None
+
+
 def fetch_github_file(repo: str, path: str, branch: str = "master") -> Optional[str]:
     """Fetch file content from GitHub"""
     url = f"https://raw.githubusercontent.com/{repo}/{branch}/{path}"
@@ -170,17 +208,19 @@ def update_manifest_content(
     release_notes_url: Optional[str] = None,
     arch_hashes: Optional[Dict[str, str]] = None,
     installer_urls: Optional[Dict[str, str]] = None,
-    installer_url: Optional[str] = None
+    installer_url: Optional[str] = None,
+    product_codes: Optional[Dict[str, str]] = None
 ) -> str:
     """
-    Update version, InstallerUrl, and SHA256 in manifest content.
+    Update version, InstallerUrl, SHA256, and ProductCode in manifest content.
     
     Strategy:
     1. Extract old version from PackageVersion field
     2. Replace ALL occurrences of old version with new version
     3. Update SHA256 hashes if provided (supports multi-arch)
-    4. Update ReleaseDate to today
-    5. Update ReleaseNotes and ReleaseNotesUrl if provided
+    4. Update ProductCode if provided (supports multi-arch)
+    5. Update ReleaseDate to today
+    6. Update ReleaseNotes and ReleaseNotesUrl if provided
     """
     
     # Extract old version from PackageVersion field
@@ -282,6 +322,29 @@ def update_manifest_content(
             content
         )
         print(f"  ✅ Updated SignatureSha256")
+    
+    # Update ProductCode - support multi-architecture
+    if product_codes:
+        # Multi-architecture: update ProductCode for each architecture
+        lines = content.split('\n')
+        updated_lines = []
+        current_arch = None
+        
+        for line in lines:
+            # Track current architecture
+            if re.match(r'^\s*-\s*Architecture:\s*(\w+)', line):
+                match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
+                current_arch = match.group(1)
+            
+            # Update ProductCode for current architecture
+            if 'ProductCode:' in line and current_arch and current_arch in product_codes:
+                indent = len(line) - len(line.lstrip())
+                line = ' ' * indent + f'ProductCode: {product_codes[current_arch]}'
+                print(f"  ✅ Updated {current_arch} ProductCode")
+            
+            updated_lines.append(line)
+        
+        content = '\n'.join(updated_lines)
     
     # Update ReleaseDate to today (ISO 8601 format: YYYY-MM-DD)
     today = datetime.now().strftime('%Y-%m-%d')
@@ -475,7 +538,8 @@ def process_template_and_create_version(
     release_notes_url: Optional[str],
     arch_hashes: Optional[Dict[str, str]],
     installer_urls: Optional[Dict[str, str]],
-    installer_url: Optional[str]
+    installer_url: Optional[str],
+    product_codes: Optional[Dict[str, str]] = None
 ) -> bool:
     """
     Copy and update manifest files from template to new version.
@@ -508,14 +572,14 @@ def process_template_and_create_version(
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256, 
                         release_notes, release_notes_url, arch_hashes,
-                        installer_urls, installer_url
+                        installer_urls, installer_url, product_codes
                     )
                 elif is_installer_file and arch_hashes:
-                    # Update installer file with multi-arch hashes
+                    # Update installer file with multi-arch hashes and product codes
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256,
                         None, None, arch_hashes,
-                        installer_urls, installer_url
+                        installer_urls, installer_url, product_codes
                     )
                     # Add missing architectures (e.g., arm64 if not in old version)
                     if installer_urls:
@@ -527,7 +591,7 @@ def process_template_and_create_version(
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256,
                         None, None, arch_hashes,
-                        installer_urls, installer_url
+                        installer_urls, installer_url, product_codes
                     )
                 
                 with open(dst_file, 'w', encoding='utf-8') as f:
@@ -560,11 +624,24 @@ def update_manifests(
         if installer_urls:
             print(f"Multi-architecture package detected: {', '.join(installer_urls.keys())}")
             arch_hashes = {}
+            product_codes = {}
             
             # Calculate hash for each architecture
             for arch, url in installer_urls.items():
                 print(f"\n📥 Processing {arch} architecture...")
-                file_ext = '.msix' if url.lower().endswith('.msix') else ('.zip' if url.lower().endswith('.zip') else '.exe')
+                # Determine file extension
+                if url.lower().endswith('.msi'):
+                    file_ext = '.msi'
+                    is_msi = True
+                elif url.lower().endswith('.msix'):
+                    file_ext = '.msix'
+                    is_msi = False
+                elif url.lower().endswith('.zip'):
+                    file_ext = '.zip'
+                    is_msi = False
+                else:
+                    file_ext = '.exe'
+                    is_msi = False
                 
                 with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
                     tmp_path = tmp_file.name
@@ -574,9 +651,16 @@ def update_manifests(
                     os.unlink(tmp_path)
                     continue
                 
+                # Calculate SHA256
                 arch_hash = calculate_sha256(tmp_path)
                 arch_hashes[arch] = arch_hash
-                print(f"✅ {arch}: {arch_hash}")
+                print(f"  ✅ SHA256: {arch_hash}")
+                
+                # Extract ProductCode from MSI files
+                if is_msi:
+                    product_code = extract_product_code_from_msi(tmp_path)
+                    if product_code:
+                        product_codes[arch] = product_code
                 
                 os.unlink(tmp_path)
             
@@ -590,8 +674,18 @@ def update_manifests(
         else:
             # Single architecture (legacy)
             # Determine file extension from URL
-            file_ext = '.msix' if installer_url.lower().endswith('.msix') else '.exe'
-            is_msix = file_ext == '.msix'
+            if installer_url.lower().endswith('.msi'):
+                file_ext = '.msi'
+                is_msi = True
+                is_msix = False
+            elif installer_url.lower().endswith('.msix'):
+                file_ext = '.msix'
+                is_msi = False
+                is_msix = True
+            else:
+                file_ext = '.exe'
+                is_msi = False
+                is_msix = False
             
             # Download installer to calculate SHA256
             with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
@@ -608,6 +702,13 @@ def update_manifests(
             if is_msix:
                 print("MSIX package detected, calculating SignatureSha256...")
                 signature_sha256 = calculate_msix_signature_sha256(tmp_path)
+            
+            # Extract ProductCode from MSI files
+            product_codes = None
+            if is_msi:
+                product_code = extract_product_code_from_msi(tmp_path)
+                if product_code:
+                    product_codes = {'default': product_code}
             
             os.unlink(tmp_path)
             arch_hashes = None
@@ -689,7 +790,7 @@ def update_manifests(
                             return process_template_and_create_version(
                                 repo_dir, manifest_path, version, latest_dir, latest_version,
                                 sha256, signature_sha256, release_notes, release_notes_url,
-                                arch_hashes, installer_urls, installer_url
+                                arch_hashes, installer_urls, installer_url, product_codes
                             )
                         except Exception as e:
                             print(f"Error fetching template from commit {template_commit}: {e}")
@@ -727,7 +828,7 @@ def update_manifests(
             return process_template_and_create_version(
                 repo_dir, manifest_path, version, latest_dir, latest_version,
                 sha256, signature_sha256, release_notes, release_notes_url,
-                arch_hashes, installer_urls, installer_url
+                arch_hashes, installer_urls, installer_url, product_codes
             )
         
     except Exception as e:
