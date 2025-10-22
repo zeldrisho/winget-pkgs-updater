@@ -426,17 +426,55 @@ def update_manifest_content(
 
 
 def clone_winget_pkgs(fork_repo: str, temp_dir: str, token: str) -> bool:
-    """Clone forked winget-pkgs repository"""
+    """Clone forked winget-pkgs repository and sync with upstream"""
     try:
         # Use token in URL for authentication
         repo_url = f"https://{token}@github.com/{fork_repo}.git"
         print(f"Cloning https://github.com/{fork_repo}.git...")
         
+        # Clone with more depth to ensure we get recent versions
         subprocess.run(
-            ['git', 'clone', '--depth', '1', repo_url, temp_dir],
+            ['git', 'clone', '--depth', '50', repo_url, temp_dir],
             check=True,
             capture_output=True
         )
+        
+        # Add upstream remote and fetch latest
+        print(f"Syncing with upstream microsoft/winget-pkgs...")
+        subprocess.run(
+            ['git', 'remote', 'add', 'upstream', 'https://github.com/microsoft/winget-pkgs.git'],
+            cwd=temp_dir,
+            check=True,
+            capture_output=True
+        )
+        
+        # Fetch upstream master branch (shallow to avoid too much data)
+        subprocess.run(
+            ['git', 'fetch', 'upstream', 'master', '--depth', '50'],
+            cwd=temp_dir,
+            check=True,
+            capture_output=True
+        )
+        
+        # Merge upstream/master into current branch
+        print(f"Merging latest changes from upstream...")
+        result = subprocess.run(
+            ['git', 'merge', 'upstream/master', '--no-edit', '--strategy-option', 'theirs'],
+            cwd=temp_dir,
+            capture_output=True
+        )
+        
+        if result.returncode != 0:
+            # If merge failed, try reset to upstream/master
+            print(f"⚠️  Merge failed, resetting to upstream/master...")
+            subprocess.run(
+                ['git', 'reset', '--hard', 'upstream/master'],
+                cwd=temp_dir,
+                check=True,
+                capture_output=True
+            )
+        else:
+            print(f"✅ Successfully synced with upstream")
         
         # Configure git
         subprocess.run(
@@ -856,6 +894,14 @@ def update_manifests(
             versions.sort(key=version_sort_key)
             latest_version = versions[-1]
             latest_dir = os.path.join(manifest_base, latest_version)
+            
+            print(f"Available versions in repository: {', '.join(versions[-5:])}")  # Show last 5
+            print(f"Selected latest version: {latest_version}")
+            
+            # Sanity check: warn if selected version is newer than target version
+            if version_sort_key(latest_version) >= version_sort_key(version):
+                print(f"⚠️  WARNING: Latest version {latest_version} >= target version {version}")
+                print(f"   This might indicate the version already exists or there's a versioning issue")
             
             # Process template from repo directory (normal case)
             return process_template_and_create_version(
