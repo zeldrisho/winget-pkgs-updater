@@ -323,24 +323,57 @@ def update_manifest_content(
         )
         print(f"  ✅ Updated SignatureSha256")
     
-    # Update ProductCode - support multi-architecture
+    # Update ProductCode - support multi-architecture and AppsAndFeaturesEntries
     if product_codes:
         # Multi-architecture: update ProductCode for each architecture
         lines = content.split('\n')
         updated_lines = []
         current_arch = None
+        in_apps_features = False
+        in_installers_section = False
         
         for line in lines:
-            # Track current architecture
-            if re.match(r'^\s*-\s*Architecture:\s*(\w+)', line):
+            # Track if we're in the Installers section (for multi-arch)
+            if 'Installers:' in line and line.strip() == 'Installers:':
+                in_installers_section = True
+                in_apps_features = False
+            
+            # Track current architecture (only in Installers section)
+            if in_installers_section and re.match(r'^\s*-\s*Architecture:\s*(\w+)', line):
                 match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
                 current_arch = match.group(1)
             
-            # Update ProductCode for current architecture
-            if 'ProductCode:' in line and current_arch and current_arch in product_codes:
+            # Track if we're in AppsAndFeaturesEntries section
+            if 'AppsAndFeaturesEntries:' in line:
+                in_apps_features = True
+                in_installers_section = False
+                current_arch = None
+            elif line and not line.startswith(' ') and not line.startswith('-'):
+                # Exited both sections
+                if not line.strip().startswith('#'):
+                    in_apps_features = False
+                    in_installers_section = False
+            
+            # Update ProductCode in different contexts
+            if 'ProductCode:' in line:
                 indent = len(line) - len(line.lstrip())
-                line = ' ' * indent + f'ProductCode: {product_codes[current_arch]}'
-                print(f"  ✅ Updated {current_arch} ProductCode")
+                
+                if in_apps_features and 'default' in product_codes:
+                    # ProductCode in AppsAndFeaturesEntries (single-arch)
+                    line = ' ' * indent + f'- ProductCode: {product_codes["default"]}'
+                    print(f"  ✅ Updated ProductCode in AppsAndFeaturesEntries")
+                elif in_installers_section and current_arch and current_arch in product_codes:
+                    # ProductCode for specific architecture in Installers section
+                    line = ' ' * indent + f'ProductCode: {product_codes[current_arch]}'
+                    print(f"  ✅ Updated {current_arch} ProductCode in Installers")
+                elif not in_apps_features and not in_installers_section and 'default' in product_codes:
+                    # Top-level ProductCode (single-arch, before Installers section)
+                    line = ' ' * indent + f'ProductCode: {product_codes["default"]}'
+                    print(f"  ✅ Updated top-level ProductCode")
+                elif current_arch and current_arch in product_codes:
+                    # Fallback for architecture-specific ProductCode
+                    line = ' ' * indent + f'ProductCode: {product_codes[current_arch]}'
+                    print(f"  ✅ Updated {current_arch} ProductCode")
             
             updated_lines.append(line)
         
