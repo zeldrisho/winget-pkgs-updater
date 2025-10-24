@@ -1,0 +1,11 @@
+packageIdentifier: Nlitesoft.NTLite
+manifestPath: manifests/n/Nlitesoft/NTLite
+checkver:
+  type: script
+  script: |
+    $response = Invoke-WebRequest -Uri "https://www.ntlite.com/download/" -UseBasicParsing
+    Write-Output $response.Content
+  regex: ">v([\\d.]+)"
+installerUrlTemplate:
+  x64: "https://downloads.ntlite.com/files/NTLite_setup_x64.exe"
+  x86: "https://downloads.ntlite.com/files/NTLite_setup_x86.exe"
