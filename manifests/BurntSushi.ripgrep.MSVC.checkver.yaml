@@ -7,7 +7,6 @@ manifestPath: manifests/b/BurntSushi/ripgrep/MSVC
 checkver:
   type: github
   repo: BurntSushi/ripgrep
-  regex: "v?([\\d\\.]+)"
 
 # ripgrep MSVC installer URLs from GitHub releases
 # Format: ripgrep-{version}-{arch}-pc-windows-msvc.zip

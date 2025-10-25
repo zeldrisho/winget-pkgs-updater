@@ -7,7 +7,6 @@ manifestPath: manifests/b/BurntSushi/ripgrep/GNU
 checkver:
   type: github
   repo: BurntSushi/ripgrep
-  regex: "v?([\\d\\.]+)"
 
 # ripgrep GNU installer URL from GitHub releases
 # Format: ripgrep-{version}-x86_64-pc-windows-gnu.zip

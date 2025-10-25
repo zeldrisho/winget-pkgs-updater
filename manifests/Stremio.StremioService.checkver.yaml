@@ -6,7 +6,6 @@ manifestPath: manifests/s/Stremio/StremioService
 checkver:
   type: github
   repo: Stremio/stremio-service
-  regex: "v?([\\d\\.]+)"
 
 # Installer URL template from GitHub releases
 # Example: https://github.com/Stremio/stremio-service/releases/download/v0.1.14/StremioServiceSetup.exe

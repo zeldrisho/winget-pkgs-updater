@@ -7,7 +7,6 @@ manifestPath: manifests/b/BurntSushi/xsv/GNU
 checkver:
   type: github
   repo: BurntSushi/xsv
-  regex: "v?([\\d\\.]+)"
 
 # xsv GNU installer URLs from GitHub releases
 # Format: xsv-{version}-{arch}-pc-windows-gnu.zip

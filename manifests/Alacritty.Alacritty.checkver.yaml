@@ -6,7 +6,6 @@ manifestPath: manifests/a/Alacritty/Alacritty
 checkver:
   type: github
   repo: alacritty/alacritty
-  regex: "v?([\\d\\.]+)"
 
 # Alacritty installer URL from GitHub releases
 # Uses MSI installer format: Alacritty-v{version}-installer.msi

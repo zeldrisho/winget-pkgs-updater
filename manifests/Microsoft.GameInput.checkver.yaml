@@ -7,7 +7,6 @@ manifestPath: manifests/m/Microsoft/GameInput
 checkver:
   type: github
   repo: microsoftconnect/GameInput
-  regex: "v?([\\d\\.]+)"
 
 # GameInput installer URL from GitHub releases
 # Tag format: v3.0.26100.6154, installer filename: GameInputRedist.msi
