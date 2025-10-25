@@ -21,6 +21,11 @@ checkver:
     }
   regex: "(?P<version>[\\d\\.]+)\\|(?P<releaseNotesUrl>[^\\|]+)\\|(?P<releaseNotes>.*)"
 
+updateMetadata:
+  - ReleaseDate
+  - ReleaseNotes
+  - ReleaseNotesUrl
+
 # RustDesk installer URLs from GitHub releases
 # x86 uses -x86-sciter.exe, x64 uses -x86_64.exe
 installerUrlTemplate:

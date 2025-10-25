@@ -17,9 +17,20 @@ checkver:
       if (($version.Split('.').Count) -eq 3) {
         $version = $version + '.0'
       }
-      Write-Output $version
+      
+      # Extract metadata for updateMetadata
+      $releaseNotes = $response.body
+      $releaseNotesUrl = $response.html_url
+      
+      # Output format: version|releaseNotesUrl|releaseNotes
+      Write-Output "$version|$releaseNotesUrl|$releaseNotes"
     }
-  regex: "([\\d\\.]+)"
+  regex: "(?P<version>[\\d\\.]+)\\|(?P<releaseNotesUrl>[^\\|]+)\\|(?P<releaseNotes>.*)"
+
+updateMetadata:
+  - ReleaseDate
+  - ReleaseNotes
+  - ReleaseNotesUrl
 
 # MSIX installer template
 # Tag uses 3-part version (v2.4.4), filename uses 4-part version (2.4.4.0)

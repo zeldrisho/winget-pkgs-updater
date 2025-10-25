@@ -23,6 +23,11 @@ checkver:
     }
   regex: "(?P<version>[\\d\\.]+)\\|(?P<releaseNotesUrl>[^\\|]+)\\|(?P<releaseNotes>.*)"
 
+updateMetadata:
+  - ReleaseDate
+  - ReleaseNotes
+  - ReleaseNotesUrl
+
 # PowerShell installer URLs from GitHub releases
 # Format: https://github.com/PowerShell/PowerShell/releases/download/v{versionShort}/PowerShell-{versionShort}-win-{arch}.msi
 # Note: URLs use 3-digit version (7.5.4) but manifest uses 4-digit (7.5.4.0)

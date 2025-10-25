@@ -21,6 +21,11 @@ checkver:
     }
   regex: "(?P<version>[\\d\\.]+)\\|(?P<releaseNotesUrl>[^\\|]+)\\|(?P<releaseNotes>.*)"
 
+updateMetadata:
+  - ReleaseDate
+  - ReleaseNotes
+  - ReleaseNotesUrl
+
 # Rclone installer URLs from GitHub releases
 # Format: rclone-v{version}-windows-{arch}.zip
 installerUrlTemplate:

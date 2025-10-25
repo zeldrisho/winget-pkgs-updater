@@ -5,6 +5,7 @@ checkver:
   repo: albertony/npiperelay
 
 updateMetadata:
+  - ReleaseDate
   - ReleaseNotes
   - ReleaseNotesUrl
 

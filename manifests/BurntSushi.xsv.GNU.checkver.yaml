@@ -1,0 +1,22 @@
+packageIdentifier: BurntSushi.xsv.GNU
+# Path structure: manifests/{first-letter}/{publisher}/{package}/{variant}
+# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/b/BurntSushi/xsv/GNU
+# Raw manifest reference: https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/b/BurntSushi/xsv/GNU/0.13.0/BurntSushi.xsv.GNU.installer.yaml
+manifestPath: manifests/b/BurntSushi/xsv/GNU
+
+checkver:
+  type: github
+  repo: BurntSushi/xsv
+  regex: "v?([\\d\\.]+)"
+
+updateMetadata:
+  - ReleaseDate
+  - ReleaseNotes
+  - ReleaseNotesUrl
+
+# xsv GNU installer URLs from GitHub releases
+# Format: xsv-{version}-{arch}-pc-windows-gnu.zip
+# Note: RelativeFilePath is just "xsv.exe" without version
+installerUrlTemplate:
+  x86: "https://github.com/BurntSushi/xsv/releases/download/{version}/xsv-{version}-i686-pc-windows-gnu.zip"
+  x64: "https://github.com/BurntSushi/xsv/releases/download/{version}/xsv-{version}-x86_64-pc-windows-gnu.zip"

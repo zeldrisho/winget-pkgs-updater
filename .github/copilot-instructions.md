@@ -74,6 +74,25 @@ installerUrlTemplate:
   arm64: "https://example.com/{version}-arm64.zip"
 ```
 
+**Metadata Updates (GitHub Type):**
+For GitHub-based checkvers, you can automatically update metadata from releases:
+```yaml
+checkver:
+  type: github
+  repo: owner/repo
+  regex: "v?([\\d\\.]+)"
+
+updateMetadata:
+  - ReleaseDate      # Updates to current date
+  - ReleaseNotes     # Fetches from GitHub release body
+  - ReleaseNotesUrl  # Fetches from GitHub release URL
+```
+When `updateMetadata` is defined:
+- System fetches data from GitHub API during version check
+- Updates are applied to locale manifest (if fields exist)
+- Only updates fields that already exist in the manifest
+- ReleaseDate is always updated to current date
+
 **Fetching from Raw Sources:**
 For packages where version info comes from raw text files (like documentation or release notes):
 ```yaml
@@ -110,10 +129,11 @@ The path can be longer than the basic structure as needed.
 
 ## Key Concepts
 
-- **Global String Replacement:** update_manifest.py replaces ALL occurrences of old version with new version
+- **Global String Replacement:** update_manifest.py replaces ALL occurrences of old version with new version (including RelativeFilePath)
 - **PowerShell Scripts:** Use `pwsh` for version detection (30s timeout)
 - **Python Named Groups:** Use `(?P<name>...)` NOT `(?<name>...)`
 - **MSIX Packages:** Require both SHA256 and SignatureSha256
+- **Metadata Updates:** GitHub checkvers can auto-update ReleaseDate, ReleaseNotes, ReleaseNotesUrl in locale manifests
 
 ## Testing
 

@@ -9,6 +9,7 @@ checkver:
   regex: "v?([\\d\\.]+)"
 
 updateMetadata:
+  - ReleaseDate
   - ReleaseNotes
   - ReleaseNotesUrl
 

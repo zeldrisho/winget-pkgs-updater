@@ -382,15 +382,18 @@ def update_manifest_content(
         content = '\n'.join(updated_lines)
     
     # Update ReleaseDate to today (ISO 8601 format: YYYY-MM-DD)
+    # Only updates if ReleaseDate field exists in manifest (typically in installer manifest)
     today = datetime.now().strftime('%Y-%m-%d')
-    content = re.sub(
-        r'ReleaseDate:\s*[\d-]+',
-        f'ReleaseDate: {today}',
-        content
-    )
-    print(f"  ✅ Updated ReleaseDate to {today}")
+    if re.search(r'ReleaseDate:\s*[\d-]+', content):
+        content = re.sub(
+            r'ReleaseDate:\s*[\d-]+',
+            f'ReleaseDate: {today}',
+            content
+        )
+        print(f"  ✅ Updated ReleaseDate to {today}")
     
     # Update ReleaseNotes if provided (for GitHub releases)
+    # Only updates if ReleaseNotes field exists in manifest (typically in locale manifest)
     if release_notes:
         # Escape special characters for YAML block scalar
         # Use |- for literal block scalar (strips trailing newlines)
@@ -406,8 +409,8 @@ def update_manifest_content(
                 flags=re.MULTILINE
             )
             print(f"  ✅ Updated ReleaseNotes (block scalar)")
-        else:
-            # Single line or missing - add as block scalar
+        elif re.search(r'ReleaseNotes:', content):
+            # Single line format - update it
             content = re.sub(
                 r'(ReleaseNotes:).*',
                 f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}',
@@ -416,7 +419,8 @@ def update_manifest_content(
             print(f"  ✅ Updated ReleaseNotes")
     
     # Update ReleaseNotesUrl if provided
-    if release_notes_url:
+    # Only updates if ReleaseNotesUrl field exists in manifest (typically in locale manifest)
+    if release_notes_url and re.search(r'ReleaseNotesUrl:', content):
         content = re.sub(
             r'ReleaseNotesUrl:.*',
             f'ReleaseNotesUrl: {release_notes_url}',

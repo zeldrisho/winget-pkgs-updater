@@ -5,17 +5,14 @@ packageIdentifier: Microsoft.GameInput
 manifestPath: manifests/m/Microsoft/GameInput
 
 checkver:
-  type: script
-  script: |
-    # Get latest stable release from GitHub API
-    # https://github.com/microsoftconnect/GameInput
-    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoftconnect/GameInput/releases/latest"
-    if ($response.tag_name) {
-      # Remove 'v' prefix (e.g., v3.0.26100.6154 -> 3.0.26100.6154)
-      $version = $response.tag_name -replace '^v', ''
-      Write-Output $version
-    }
-  regex: "([\\d\\.]+)"
+  type: github
+  repo: microsoftconnect/GameInput
+  regex: "v?([\\d\\.]+)"
+
+updateMetadata:
+  - ReleaseDate
+  - ReleaseNotes
+  - ReleaseNotesUrl
 
 # GameInput installer URL from GitHub releases
 # Tag format: v3.0.26100.6154, installer filename: GameInputRedist.msi

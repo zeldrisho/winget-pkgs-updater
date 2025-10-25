@@ -1,0 +1,21 @@
+packageIdentifier: BurntSushi.ripgrep.GNU
+# Path structure: manifests/{first-letter}/{publisher}/{package}/{variant}
+# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/b/BurntSushi/ripgrep/GNU
+# Raw manifest reference: https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/b/BurntSushi/ripgrep/GNU/15.1.0/BurntSushi.ripgrep.GNU.installer.yaml
+manifestPath: manifests/b/BurntSushi/ripgrep/GNU
+
+checkver:
+  type: github
+  repo: BurntSushi/ripgrep
+  regex: "v?([\\d\\.]+)"
+
+updateMetadata:
+  - ReleaseDate
+  - ReleaseNotes
+  - ReleaseNotesUrl
+
+# ripgrep GNU installer URL from GitHub releases
+# Format: ripgrep-{version}-x86_64-pc-windows-gnu.zip
+# Note: RelativeFilePath contains version string that needs updating
+installerUrlTemplate:
+  x64: "https://github.com/BurntSushi/ripgrep/releases/download/{version}/ripgrep-{version}-x86_64-pc-windows-gnu.zip"
