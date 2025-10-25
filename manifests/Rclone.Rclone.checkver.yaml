@@ -1,21 +1,14 @@
 packageIdentifier: Rclone.Rclone
-# Path structure: manifests/{first-letter}/{publisher}/{package}
-# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/r/Rclone/Rclone
-# Raw manifest reference: https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/r/Rclone/Rclone/1.71.2/Rclone.Rclone.installer.yaml
 manifestPath: manifests/r/Rclone/Rclone
 
-# GitHub-based checkver
 checkver:
   type: github
   repo: rclone/rclone
 
-# Metadata to fetch from GitHub
 updateMetadata:
   - ReleaseNotes
   - ReleaseNotesUrl
 
-# Rclone installer URLs from GitHub releases
-# Format: rclone-v{version}-windows-{arch}.zip
 installerUrlTemplate:
   x86: "https://github.com/rclone/rclone/releases/download/v{version}/rclone-v{version}-windows-386.zip"
   x64: "https://github.com/rclone/rclone/releases/download/v{version}/rclone-v{version}-windows-amd64.zip"

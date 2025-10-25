@@ -1,7 +1,7 @@
 packageIdentifier: Roblox.Roblox
 manifestPath: manifests/r/Roblox/Roblox
-templateVersion: "1.6.2.6660608"  # Template from commit f4b71b38553b3f3ec6103d93dee738568c5484f0
-templateCommit: "f4b71b38553b3f3ec6103d93dee738568c5484f0"  # Fallback when no versions exist on master
+templateVersion: "1.6.2.6660608"
+templateCommit: "f4b71b38553b3f3ec6103d93dee738568c5484f0"
 checkver:
   type: script
   script: |
@@ -16,7 +16,6 @@ checkver:
         exit 1
     }
     
-    # Output in format: version|clientVersionUpload
     Write-Output "$version|$clientVersionUpload"
   regex: "(?P<version>[\\d\\.]+)\\|(?P<clientVersionUpload>version-[a-f0-9]+)"
 installerUrlTemplate: "https://setup.rbxcdn.com/{clientVersionUpload}-RobloxPlayerInstaller.exe"

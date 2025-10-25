@@ -1,25 +1,15 @@
 packageIdentifier: Microsoft.PowerShell
-# Path structure: manifests/{first-letter}/{publisher}/{package}
-# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/m/Microsoft/PowerShell
-# Raw manifest reference: https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/m/Microsoft/PowerShell/7.5.3.0/Microsoft.PowerShell.installer.yaml
 manifestPath: manifests/m/Microsoft/PowerShell
 
-# GitHub-based checkver
-# Automatically appends .0 to 3-part versions (7.5.4 -> 7.5.4.0)
 checkver:
   type: github
   repo: PowerShell/PowerShell
   appendDotZero: true
 
-# Metadata to fetch from GitHub
 updateMetadata:
   - ReleaseNotes
   - ReleaseNotesUrl
 
-# PowerShell installer URLs from GitHub releases
-# Format: https://github.com/PowerShell/PowerShell/releases/download/v{versionShort}/PowerShell-{versionShort}-win-{arch}.msi
-# Note: URLs use 3-digit version (7.5.4) but manifest uses 4-digit (7.5.4.0)
-# {versionShort} removes trailing .0 from version
 installerUrlTemplate:
   x64: "https://github.com/PowerShell/PowerShell/releases/download/v{versionShort}/PowerShell-{versionShort}-win-x64.msi"
   x86: "https://github.com/PowerShell/PowerShell/releases/download/v{versionShort}/PowerShell-{versionShort}-win-x86.msi"

@@ -1,16 +1,10 @@
 packageIdentifier: BurntSushi.xsv.MSVC
-# Path structure: manifests/{first-letter}/{publisher}/{package}/{variant}
-# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/b/BurntSushi/xsv/MSVC
-# Raw manifest reference: https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/b/BurntSushi/xsv/MSVC/0.13.0/BurntSushi.xsv.MSVC.installer.yaml
 manifestPath: manifests/b/BurntSushi/xsv/MSVC
 
 checkver:
   type: github
   repo: BurntSushi/xsv
 
-# xsv MSVC installer URLs from GitHub releases
-# Format: xsv-{version}-{arch}-pc-windows-msvc.zip
-# Note: RelativeFilePath is just "xsv.exe" without version
 installerUrlTemplate:
   x86: "https://github.com/BurntSushi/xsv/releases/download/{version}/xsv-{version}-i686-pc-windows-msvc.zip"
   x64: "https://github.com/BurntSushi/xsv/releases/download/{version}/xsv-{version}-x86_64-pc-windows-msvc.zip"

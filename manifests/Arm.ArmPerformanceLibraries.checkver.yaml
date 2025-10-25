@@ -1,22 +1,16 @@
 packageIdentifier: Arm.ArmPerformanceLibraries
-# Path structure: manifests/{first-letter}/{publisher}/{package}
-# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/a/Arm/ArmPerformanceLibraries
-# Raw manifest reference: https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/a/Arm/ArmPerformanceLibraries/25.07/Arm.ArmPerformanceLibraries.installer.yaml
 manifestPath: manifests/a/Arm/ArmPerformanceLibraries
 
 checkver:
   type: script
   script: |
-    # Fetch the Ubuntu package repository page
     $response = Invoke-WebRequest -Uri "https://developer.arm.com/packages/arm-toolchains%3Aubuntu-24/noble/" -UseBasicParsing
-    # Extract all version numbers
     $versions = @()
     $response.Content -split "`n" | ForEach-Object {
       if ($_ -match 'arm-performance-libraries_([\d.]+)') {
         $versions += $matches[1]
       }
     }
-    # Get unique versions and find the latest by sorting
     $latest = $versions | Select-Object -Unique | Sort-Object {[version]$_} -Descending | Select-Object -First 1
     Write-Output $latest
   regex: "([\\d.]+)"

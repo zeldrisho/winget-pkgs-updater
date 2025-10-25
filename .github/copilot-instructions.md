@@ -21,6 +21,36 @@ Automated tool that monitors software packages and creates pull requests to [mic
    - Creates branch in user's fork
    - Submits PR to upstream
 
+## Workflow for Adding New Manifests
+
+**When user requests to add a new manifest:**
+
+1. **User Provides:**
+   - Package name/identifier
+   - Example checkver template or reference
+
+2. **Agent Must:**
+   - Fetch latest version manifest from microsoft/winget-pkgs
+   - Scan all manifest files (installer, locale, version YAML)
+   - Analyze field structure and identify any unusual fields
+
+3. **Report Findings:**
+   - **If unusual fields detected:** Notify user about fields that may require new features
+     - Examples: Custom installer switches, nested architectures, special dependencies, etc.
+     - Wait for user decision before proceeding
+   - **If standard fields only:** Proceed to write checkver configuration
+
+4. **Create Checkver:**
+   - Write checkver YAML following standard patterns
+   - Test with `check_version.py` to verify it works
+
+**Example unusual fields to watch for:**
+- Non-standard installer types
+- Complex ProductCode patterns not covered by current system
+- Custom fields beyond ReleaseNotes/ReleaseNotesUrl/ReleaseDate
+- Special dependencies or requirements
+- Nested or dynamic architecture configurations
+
 ## Checkver Configuration
 
 **Before Creating New Checkver:**

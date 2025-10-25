@@ -1,11 +1,5 @@
-# Checkver configuration for VNGCorp.Zalo
-# This file tells the updater how to check for new versions
-# The actual manifests are fetched from microsoft/winget-pkgs
-
 packageIdentifier: VNGCorp.Zalo
-# Path structure: manifests/{first-letter}/{publisher}/{package}
-# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/v/VNGCorp/Zalo
-manifestPath: manifests/v/VNGCorp/Zalo  # Path in microsoft/winget-pkgs
+manifestPath: manifests/v/VNGCorp/Zalo
 
 checkver:
   type: script
@@ -22,5 +16,4 @@ checkver:
     }
   regex: ZaloSetup-([\d\.]+)\.exe
 
-# Installer URL template for downloading and calculating SHA256
 installerUrlTemplate: https://res-zaloapp-aka.zdn.vn/win/ZaloSetup-{version}.exe

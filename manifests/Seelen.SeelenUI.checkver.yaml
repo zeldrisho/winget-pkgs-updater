@@ -1,21 +1,13 @@
 packageIdentifier: Seelen.SeelenUI
-# Path structure: manifests/{first-letter}/{publisher}/{package}
-# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/s/Seelen/SeelenUI
 manifestPath: manifests/s/Seelen/SeelenUI
 
-# GitHub-based checkver
-# Automatically appends .0 to 3-part versions (2.4.4 -> 2.4.4.0)
 checkver:
   type: github
   repo: eythaann/Seelen-UI
   appendDotZero: true
 
-# Metadata to fetch from GitHub
 updateMetadata:
   - ReleaseNotes
   - ReleaseNotesUrl
 
-# MSIX installer template
-# Tag uses 3-part version (v2.4.4), filename uses 4-part version (2.4.4.0)
-# {versionShort} removes trailing .0 for the tag, {version} keeps full version for filename
 installerUrlTemplate: "https://github.com/eythaann/Seelen-UI/releases/download/v{versionShort}/Seelen.SeelenUI_{version}_x64__p6yyn03m1894e.Msix"

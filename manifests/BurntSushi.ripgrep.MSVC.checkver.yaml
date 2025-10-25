@@ -1,16 +1,10 @@
 packageIdentifier: BurntSushi.ripgrep.MSVC
-# Path structure: manifests/{first-letter}/{publisher}/{package}/{variant}
-# Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/b/BurntSushi/ripgrep/MSVC
-# Raw manifest reference: https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/b/BurntSushi/ripgrep/MSVC/15.1.0/BurntSushi.ripgrep.MSVC.installer.yaml
 manifestPath: manifests/b/BurntSushi/ripgrep/MSVC
 
 checkver:
   type: github
   repo: BurntSushi/ripgrep
 
-# ripgrep MSVC installer URLs from GitHub releases
-# Format: ripgrep-{version}-{arch}-pc-windows-msvc.zip
-# Note: RelativeFilePath contains version string that needs updating
 installerUrlTemplate:
   x86: "https://github.com/BurntSushi/ripgrep/releases/download/{version}/ripgrep-{version}-i686-pc-windows-msvc.zip"
   x64: "https://github.com/BurntSushi/ripgrep/releases/download/{version}/ripgrep-{version}-x86_64-pc-windows-msvc.zip"

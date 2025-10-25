@@ -3,13 +3,7 @@ manifestPath: manifests/u/UniKey/UniKey
 checkver:
   type: script
   script: |
-    # Fetch the download page
     $downloadPage = Invoke-WebRequest -Uri "https://unikey.org/download.html" -UseBasicParsing
-    
-    # UniKey has different build dates for each architecture:
-    # - x64/x86: 230919
-    # - arm64: 250531 (newer)
-    # We need to find the LATEST build date and extract RC version + builds for each arch
     
     $builds = @{
         x64 = $null
@@ -18,25 +12,21 @@ checkver:
     }
     $rcVersion = $null
     
-    # Extract x64 version
     if ($downloadPage.Content -match 'unikey(?<rc>[\d]+[Rr][Cc]\.?\d+)-(?<build>\d+)-win64\.zip') {
         $builds.x64 = $Matches['build']
         $rcVersion = $Matches['rc']
     }
     
-    # Extract x86 version
     if ($downloadPage.Content -match 'unikey(?<rc>[\d]+[Rr][Cc]\.?\d+)-(?<build>\d+)-win32\.zip') {
         $builds.x86 = $Matches['build']
         if (-not $rcVersion) { $rcVersion = $Matches['rc'] }
     }
     
-    # Extract arm64 version
     if ($downloadPage.Content -match 'unikey(?<rc>[\d]+[Rr][Cc]\.?\d+)-(?<build>\d+)-arm64\.zip') {
         $builds.arm64 = $Matches['build']
         if (-not $rcVersion) { $rcVersion = $Matches['rc'] }
     }
     
-    # Get all non-null builds
     $buildValues = $builds.Values | Where-Object { $_ -ne $null } | ForEach-Object { [int]$_ }
     
     if ($buildValues.Count -eq 0 -or -not $rcVersion) {
@@ -44,58 +34,44 @@ checkver:
         exit 1
     }
     
-    # Use the latest build date for PackageVersion
     $latestBuild = ($buildValues | Measure-Object -Maximum).Maximum
     
-    # Fetch release notes from homepage
     $homePage = Invoke-WebRequest -Uri "https://www.unikey.org/" -UseBasicParsing
     $releaseNotes = ""
     $releaseNotesUrl = ""
     
-    # Extract the latest news about ARM64 build
     if ($homePage.Content -match 'Ngày\s+\d+/\d+/2025:[^<]*<[^>]*>Phát hành[^<]*<a href="([^"]+)"[^>]*>([^<]+)</a>([^<]*)') {
         $releaseNotesUrl = $Matches[1]
         if (-not $releaseNotesUrl.StartsWith('http')) {
             $releaseNotesUrl = "https://www.unikey.org$releaseNotesUrl"
         }
         
-        # Build release notes text - extract the description
         $linkText = $Matches[2] + $Matches[3]
-        # Remove HTML tags and clean up
         $linkText = $linkText -replace '<[^>]+>', '' -replace '\s+', ' '
         $releaseNotes = "Released $linkText".Trim()
     }
     
-    # Fallback: if ARM64 is the latest, use ARM64 page
     if (-not $releaseNotes -and $builds.arm64 -eq $latestBuild) {
         $releaseNotesUrl = "https://www.unikey.org/unikey_arm64.html"
         $releaseNotes = "Released 4.6 RC2 ARM64 native build for Windows 11 with Snapdragon processors"
     }
     
-    # Convert RC version to WinGet format: 46RC2 -> 4.6
     if ($rcVersion -match '^(\d)(\d+)[Rr][Cc](\d+)') {
         $major = $Matches[1]
         $minor = $Matches[2]
         $rcNumber = $Matches[3]
         $wingetVersion = "$major.$minor.$latestBuild"
         
-        # Output format: VERSION|RCVERSION|BUILD_X64|BUILD_X86|BUILD_ARM64|RELEASE_NOTES|RELEASE_NOTES_URL
-        # This allows extracting all metadata via named groups
         $output = "$wingetVersion|$rcVersion|$($builds.x64)|$($builds.x86)|$($builds.arm64)|$releaseNotes|$releaseNotesUrl"
         Write-Output $output
     } else {
         Write-Error "Could not parse RC version: $rcVersion"
         exit 1
     }
-  # Named groups: version, rcversion, buildx64, buildx86, buildarm64, releasenotes, releasenotesurl
   regex: "(?P<version>[\\d\\.]+)\\|(?P<rcversion>[^\\|]+)\\|(?P<buildx64>[^\\|]+)\\|(?P<buildx86>[^\\|]+)\\|(?P<buildarm64>[^\\|]+)\\|(?P<releasenotes>[^\\|]*)\\|(?P<releasenotesurl>.*)"
 
-# Per-architecture URL templates using custom placeholders
 installerUrlTemplate:
   x64: "https://unikey.org/assets/release/unikey{rcversion}-{buildx64}-win64.zip"
   x86: "https://unikey.org/assets/release/unikey{rcversion}-{buildx86}-win32.zip"
   arm64: "https://unikey.org/assets/release/unikey{rcversion}-{buildarm64}-arm64.zip"
-
-# Release notes will be auto-detected from website
-# releaseNotes and releaseNotesUrl are extracted via regex named groups
 
