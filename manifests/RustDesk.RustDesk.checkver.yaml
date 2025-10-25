@@ -9,6 +9,11 @@ checkver:
   type: github
   repo: rustdesk/rustdesk
 
+# Metadata to fetch from GitHub
+updateMetadata:
+  - ReleaseNotes
+  - ReleaseNotesUrl
+
 # RustDesk installer URLs from GitHub releases
 # x86 uses -x86-sciter.exe, x64 uses -x86_64.exe
 installerUrlTemplate:

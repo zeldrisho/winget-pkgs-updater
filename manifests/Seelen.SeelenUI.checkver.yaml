@@ -10,6 +10,11 @@ checkver:
   repo: eythaann/Seelen-UI
   appendDotZero: true
 
+# Metadata to fetch from GitHub
+updateMetadata:
+  - ReleaseNotes
+  - ReleaseNotesUrl
+
 # MSIX installer template
 # Tag uses 3-part version (v2.4.4), filename uses 4-part version (2.4.4.0)
 # {versionShort} removes trailing .0 for the tag, {version} keeps full version for filename

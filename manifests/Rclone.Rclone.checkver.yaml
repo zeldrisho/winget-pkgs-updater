@@ -9,6 +9,11 @@ checkver:
   type: github
   repo: rclone/rclone
 
+# Metadata to fetch from GitHub
+updateMetadata:
+  - ReleaseNotes
+  - ReleaseNotesUrl
+
 # Rclone installer URLs from GitHub releases
 # Format: rclone-v{version}-windows-{arch}.zip
 installerUrlTemplate:
