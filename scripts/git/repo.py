@@ -75,17 +75,55 @@ def clone_winget_pkgs(fork_repo: str, temp_dir: str, token: str) -> bool:
         return False
 
 
-def create_pr_branch(repo_dir: str, package_id: str, version: str) -> str:
-    """Create and checkout new branch for PR"""
+def create_pr_branch(repo_dir: str, package_id: str, version: str) -> tuple[str, bool]:
+    """
+    Create and checkout new branch for PR.
+    Returns (branch_name, should_continue):
+        - (branch_name, True) if branch created successfully
+        - (branch_name, False) if branch already exists (skip to avoid duplicate PR)
+    """
     branch_name = f"{package_id}-{version}"
     try:
+        # Check if branch already exists on remote
+        result = subprocess.run(
+            ['git', 'ls-remote', '--heads', 'origin', branch_name],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True
+        )
+        
+        if result.stdout.strip():
+            # Branch exists on remote - this means PR was likely already created
+            # User intentionally keeps the branch to avoid creating duplicate PRs
+            print(f"⏭️  Branch '{branch_name}' already exists on remote")
+            print(f"   Skipping to avoid duplicate PR (branch kept intentionally)")
+            return (branch_name, False)
+        
+        # Check if branch already exists locally
+        result = subprocess.run(
+            ['git', 'rev-parse', '--verify', branch_name],
+            cwd=repo_dir,
+            capture_output=True
+        )
+        
+        if result.returncode == 0:
+            # Branch exists locally but not on remote, delete it
+            print(f"⚠️  Branch '{branch_name}' exists locally, deleting...")
+            subprocess.run(
+                ['git', 'branch', '-D', branch_name],
+                cwd=repo_dir,
+                check=True,
+                capture_output=True
+            )
+        
+        # Create new branch
         subprocess.run(
             ['git', 'checkout', '-b', branch_name],
             cwd=repo_dir,
             check=True,
             capture_output=True
         )
-        return branch_name
+        return (branch_name, True)
     except Exception as e:
         print(f"Error creating branch: {e}", file=sys.stderr)
         raise
@@ -131,12 +169,14 @@ def commit_and_push(repo_dir: str, package_id: str, version: str, branch_name: s
                     check=True
                 )
         
-        # Push
+        # Push to remote
+        print(f"Pushing to origin/{branch_name}...")
         subprocess.run(
             ['git', 'push', 'origin', branch_name],
             cwd=repo_dir,
             check=True
         )
+        print(f"✅ Successfully pushed to origin/{branch_name}")
         
         return True
     except Exception as e:

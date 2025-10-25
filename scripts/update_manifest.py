@@ -465,8 +465,12 @@ def main():
                 print("Failed to clone repository")
                 sys.exit(1)
             
-            # Create branch
-            branch_name = create_pr_branch(repo_dir, package_id, version)
+            # Create branch - check if should continue
+            branch_name, should_continue = create_pr_branch(repo_dir, package_id, version)
+            if not should_continue:
+                print(f"⏭️  Skipping {package_id} version {version} - branch already exists (intentionally kept to avoid duplicate PR)")
+                sys.exit(0)  # Exit successfully, not an error
+            
             print(f"Created branch: {branch_name}")
             
             # Update manifests with release notes and multi-arch support

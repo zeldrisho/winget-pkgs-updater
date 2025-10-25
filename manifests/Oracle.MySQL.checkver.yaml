@@ -5,4 +5,4 @@ checkver:
     Write-Output $output
   regex: "\\(mysql-([\\d.]+)\\.zip\\)"
 
-installerUrlTemplate: "https://cdn.mysql.com/Downloads/MySQL-{version}/mysql-{version}-winx64.msi"
+installerUrlTemplate: "https://dev.mysql.com/get/Downloads/MySQL-{versionMajorMinor}/mysql-{version}-winx64.msi"
