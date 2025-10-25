@@ -112,14 +112,18 @@ def get_latest_version_github(checkver_config: Dict) -> Optional[tuple]:
             release_notes = release_data.get('body', '').strip()
             if release_notes:
                 metadata['releasenotes'] = release_notes
-                print(f"✅ Fetched release notes ({len(release_notes)} chars)")
+                print(f"✅ Fetched ReleaseNotes ({len(release_notes)} chars)")
+            else:
+                print(f"⚠️  ReleaseNotes requested but not available in GitHub release")
         
         # Add release notes URL if requested
         if 'ReleaseNotesUrl' in update_metadata:
             release_url = release_data.get('html_url', '')
             if release_url:
                 metadata['releasenotesurl'] = release_url
-                print(f"✅ Fetched release notes URL: {release_url}")
+                print(f"✅ Fetched ReleaseNotesUrl: {release_url}")
+            else:
+                print(f"⚠️  ReleaseNotesUrl requested but not available in GitHub release")
         
         return (version, metadata)
         

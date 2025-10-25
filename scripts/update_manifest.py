@@ -24,16 +24,22 @@ def check_existing_pr(package_id: str, version: str) -> bool:
     Check if PR already exists for this package version.
     Returns True if OPEN or MERGED PR exists (should skip), False otherwise (should create).
     Note: CLOSED PRs are ignored - we can retry them.
+    
+    Supports both PR title formats:
+    - "New version: {package_id} version {version}"
+    - "Update {package_id} to {version}"
     """
     try:
-        title = f"New version: {package_id} version {version}"
-        print(f"🔍 Checking for existing PRs: {title}")
+        # Search for PRs that contain both package ID and version
+        # This catches both "New version: X version Y" and "Update X to Y" formats
+        search_query = f"{package_id} {version} in:title"
+        print(f"🔍 Checking for existing PRs: {package_id} version {version}")
         
         result = subprocess.run(
             [
                 'gh', 'pr', 'list',
                 '--repo', 'microsoft/winget-pkgs',
-                '--search', f'"{title}" in:title',
+                '--search', search_query,
                 '--state', 'all',  # Check open, merged, and closed PRs
                 '--json', 'number,title,state',
                 '--limit', '10'
@@ -47,7 +53,12 @@ def check_existing_pr(package_id: str, version: str) -> bool:
             prs = json.loads(result.stdout)
             if prs:
                 for pr in prs:
-                    if title.lower() in pr['title'].lower():
+                    # Check if title contains both package ID and version
+                    # This matches both formats:
+                    # - "New version: {package_id} version {version}"
+                    # - "Update {package_id} to {version}"
+                    title_lower = pr['title'].lower()
+                    if package_id.lower() in title_lower and version in pr['title']:
                         state = pr['state']
                         state_emoji = "🟢" if state == "OPEN" else "🟣" if state == "MERGED" else "⚪"
                         
@@ -74,17 +85,31 @@ def check_existing_pr(package_id: str, version: str) -> bool:
 
 
 def download_file(url: str, filepath: str) -> bool:
-    """Download file from URL to filepath"""
+    """Download file from URL to filepath with validation"""
     try:
         print(f"Downloading: {url}")
         response = requests.get(url, stream=True, timeout=60)
         response.raise_for_status()
         
+        # Track downloaded size
+        total_size = 0
         with open(filepath, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+                if chunk:  # Filter out keep-alive chunks
+                    f.write(chunk)
+                    total_size += len(chunk)
         
-        print(f"Downloaded to: {filepath}")
+        # Verify file was downloaded
+        if not os.path.exists(filepath):
+            print(f"Error: File was not created: {filepath}")
+            return False
+        
+        file_size = os.path.getsize(filepath)
+        if file_size == 0:
+            print(f"Error: Downloaded file is empty")
+            return False
+        
+        print(f"Downloaded to: {filepath} ({file_size:,} bytes)")
         return True
     except Exception as e:
         print(f"Error downloading {url}: {e}", file=sys.stderr)
@@ -92,12 +117,183 @@ def download_file(url: str, filepath: str) -> bool:
 
 
 def calculate_sha256(filepath: str) -> str:
-    """Calculate SHA256 hash of file"""
+    """Calculate SHA256 hash of file with validation"""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+    
+    file_size = os.path.getsize(filepath)
+    if file_size == 0:
+        raise ValueError(f"File is empty: {filepath}")
+    
     sha256_hash = hashlib.sha256()
+    bytes_read = 0
     with open(filepath, "rb") as f:
         for byte_block in iter(lambda: f.read(4096), b""):
             sha256_hash.update(byte_block)
-    return sha256_hash.hexdigest().upper()
+            bytes_read += len(byte_block)
+    
+    if bytes_read != file_size:
+        raise ValueError(f"File size mismatch: expected {file_size}, read {bytes_read}")
+    
+    hash_value = sha256_hash.hexdigest().upper()
+    print(f"  Calculated SHA256 for {os.path.basename(filepath)} ({file_size:,} bytes): {hash_value}")
+    return hash_value
+
+
+def remove_duplicate_fields(content: str) -> str:
+    """
+    Remove duplicate fields in YAML content while preserving structure.
+    For each unique field name within a context (architecture, top-level, etc.),
+    keeps only the first occurrence and removes duplicates.
+    
+    Smart detection:
+    - Tracks context: top-level, within architecture blocks, within other sections
+    - Preserves list items (multiple '- Architecture:' is intentional)
+    - Only removes actual duplicates (same field name in same context)
+    - Each architecture block is tracked separately
+    """
+    lines = content.split('\n')
+    result_lines = []
+    
+    # Track field occurrences per context
+    # Format: {context_key: {field_name: count}}
+    field_tracker = {}
+    
+    # Track current context
+    current_arch = None
+    current_section = None
+    current_list_item_idx = 0  # Track which list item we're in
+    in_installer_list = False
+    indent_stack = []  # Track indentation levels
+    
+    for line_idx, line in enumerate(lines):
+        stripped = line.strip()
+        
+        # Skip empty lines and comments
+        if not stripped or stripped.startswith('#'):
+            result_lines.append(line)
+            continue
+        
+        # Calculate indentation
+        indent = len(line) - len(line.lstrip())
+        
+        # Detect Installers section
+        if stripped == 'Installers:':
+            in_installer_list = True
+            current_list_item_idx = 0
+            result_lines.append(line)
+            continue
+        
+        # Parse field name
+        if ':' in stripped:
+            field_match = stripped.split(':', 1)[0].strip('- ')
+            field_name = field_match
+            is_list_start = stripped.startswith('- ')
+            
+            # Detect new list item in Installers section
+            if in_installer_list and is_list_start and field_name == 'Architecture':
+                current_list_item_idx += 1
+                arch_match = stripped.split(':', 1)[1].strip()
+                current_arch = arch_match
+                # Reset field tracker for this new architecture block
+                context_key = f"arch_block:{current_list_item_idx}:{current_arch}"
+                field_tracker[context_key] = {}
+                result_lines.append(line)
+                continue
+            
+            # Detect context changes (exit Installers section)
+            if indent == 0 and not stripped.startswith('- '):
+                in_installer_list = False
+                current_arch = None
+                current_section = field_name
+                current_list_item_idx = 0
+            
+            # Build context key
+            if current_arch and in_installer_list:
+                # Inside a specific architecture block
+                context_key = f"arch_block:{current_list_item_idx}:{current_arch}"
+            elif is_list_start:
+                # List item at this indent level (e.g., AppsAndFeaturesEntries)
+                context_key = f"list_item:{indent}:{line_idx}"
+            elif current_section:
+                context_key = f"section:{current_section}:{indent}"
+            else:
+                context_key = f"top:{indent}"
+            
+            # Check if this is a duplicate (but not for list-starting fields like '- Architecture')
+            if not (is_list_start and field_name == 'Architecture'):
+                # Initialize tracker for this context
+                if context_key not in field_tracker:
+                    field_tracker[context_key] = {}
+                
+                # Check if field already seen in this context
+                if field_name in field_tracker[context_key]:
+                    # Duplicate detected - skip this line
+                    field_tracker[context_key][field_name] += 1
+                    context_desc = context_key.split(':')[0]
+                    if current_arch:
+                        context_desc = f"{current_arch} architecture"
+                    print(f"  🧹 Removed duplicate '{field_name}' in {context_desc} (occurrence #{field_tracker[context_key][field_name]})")
+                    continue
+                else:
+                    # First occurrence - track it
+                    field_tracker[context_key][field_name] = 1
+            
+        result_lines.append(line)
+    
+    # Clean up multiple consecutive blank lines
+    result = '\n'.join(result_lines)
+    result = re.sub(r'\n\s*\n\s*\n+', '\n\n', result)
+    
+    return result
+
+
+def validate_yaml_content(content: str, filepath: str = "manifest") -> bool:
+    """
+    Validate YAML content and check for duplicate keys.
+    Returns True if valid, False otherwise.
+    """
+    try:
+        # Try to parse the YAML
+        parsed = yaml.safe_load(content)
+        
+        # Check for common issues
+        lines = content.split('\n')
+        field_counts = {}
+        current_section = None
+        
+        for line_num, line in enumerate(lines, 1):
+            stripped = line.strip()
+            
+            # Track sections
+            if stripped and not stripped.startswith('#') and ':' in stripped:
+                if not line.startswith(' '):  # Top-level field
+                    current_section = 'top_level'
+                
+                # Count field occurrences (simple check)
+                field_name = stripped.split(':')[0].strip('- ')
+                key = f"{current_section}:{field_name}"
+                field_counts[key] = field_counts.get(key, 0) + 1
+        
+        # Report duplicates
+        has_duplicates = False
+        for key, count in field_counts.items():
+            if count > 1:
+                section, field = key.split(':', 1)
+                print(f"  ⚠️  Warning: Field '{field}' appears {count} times in {section}")
+                has_duplicates = True
+        
+        if has_duplicates:
+            print(f"  ℹ️  Note: Some duplicate fields were detected but may be intentional (e.g., in lists)")
+        
+        return True
+        
+    except yaml.YAMLError as e:
+        print(f"  ❌ YAML validation error in {filepath}: {e}")
+        return False
+    except Exception as e:
+        print(f"  ❌ Validation error in {filepath}: {e}")
+        return False
 
 
 def calculate_msix_signature_sha256(msix_path: str) -> Optional[str]:
@@ -258,6 +454,7 @@ def update_manifest_content(
         lines = content.split('\n')
         updated_lines = []
         current_arch = None
+        updated_archs = set()  # Track which architectures have been updated
         
         for line in lines:
             # Track current architecture
@@ -265,15 +462,23 @@ def update_manifest_content(
                 match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
                 current_arch = match.group(1)
             
-            # Update URL for current architecture
+            # Update URL for current architecture (only once per architecture)
             if 'InstallerUrl:' in line and current_arch and current_arch in installer_urls:
-                indent = len(line) - len(line.lstrip())
-                line = ' ' * indent + f'InstallerUrl: {installer_urls[current_arch]}'
-                print(f"  ✅ Updated {current_arch} InstallerUrl")
+                if current_arch not in updated_archs:
+                    indent = len(line) - len(line.lstrip())
+                    line = ' ' * indent + f'InstallerUrl: {installer_urls[current_arch]}'
+                    print(f"  ✅ Updated {current_arch} InstallerUrl")
+                    updated_archs.add(current_arch)
+                else:
+                    # Duplicate field detected - remove it
+                    print(f"  ⚠️  Removed duplicate InstallerUrl for {current_arch}")
+                    continue  # Skip this line
             
             updated_lines.append(line)
         
         content = '\n'.join(updated_lines)
+        # Clean up multiple consecutive blank lines
+        content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
     elif installer_url:
         # Single architecture: replace the entire InstallerUrl
         content = re.sub(
@@ -289,6 +494,7 @@ def update_manifest_content(
         lines = content.split('\n')
         updated_lines = []
         current_arch = None
+        updated_archs = set()  # Track which architectures have been updated
         
         for line in lines:
             # Track current architecture
@@ -296,15 +502,23 @@ def update_manifest_content(
                 match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
                 current_arch = match.group(1)
             
-            # Update hash for current architecture
+            # Update hash for current architecture (only once per architecture)
             if 'InstallerSha256:' in line and current_arch and current_arch in arch_hashes:
-                indent = len(line) - len(line.lstrip())
-                line = ' ' * indent + f'InstallerSha256: {arch_hashes[current_arch]}'
-                print(f"  ✅ Updated {current_arch} InstallerSha256")
+                if current_arch not in updated_archs:
+                    indent = len(line) - len(line.lstrip())
+                    line = ' ' * indent + f'InstallerSha256: {arch_hashes[current_arch]}'
+                    print(f"  ✅ Updated {current_arch} InstallerSha256")
+                    updated_archs.add(current_arch)
+                else:
+                    # Duplicate field detected - remove it
+                    print(f"  ⚠️  Removed duplicate InstallerSha256 for {current_arch}")
+                    continue  # Skip this line
             
             updated_lines.append(line)
         
         content = '\n'.join(updated_lines)
+        # Clean up multiple consecutive blank lines
+        content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
     elif sha256:
         # Single architecture (legacy)
         content = re.sub(
@@ -331,6 +545,7 @@ def update_manifest_content(
         current_arch = None
         in_apps_features = False
         in_installers_section = False
+        updated_contexts = set()  # Track which contexts have been updated (e.g., "apps_features", "x64", "x86")
         
         for line in lines:
             # Track if we're in the Installers section (for multi-arch)
@@ -358,43 +573,86 @@ def update_manifest_content(
             # Note: ProductCode must be quoted in YAML (like UpgradeCode)
             if 'ProductCode:' in line:
                 indent = len(line) - len(line.lstrip())
+                context_key = None
+                should_update = False
                 
                 if in_apps_features and 'default' in product_codes:
-                    # ProductCode in AppsAndFeaturesEntries (single-arch)
-                    # Use single quotes to match UpgradeCode format
-                    line = ' ' * indent + f"- ProductCode: '{product_codes['default']}'"
-                    print(f"  ✅ Updated ProductCode in AppsAndFeaturesEntries")
+                    context_key = 'apps_features'
+                    if context_key not in updated_contexts:
+                        # ProductCode in AppsAndFeaturesEntries (single-arch)
+                        line = ' ' * indent + f"- ProductCode: '{product_codes['default']}'"
+                        print(f"  ✅ Updated ProductCode in AppsAndFeaturesEntries")
+                        should_update = True
+                    else:
+                        print(f"  ⚠️  Removed duplicate ProductCode in AppsAndFeaturesEntries")
+                        continue
                 elif in_installers_section and current_arch and current_arch in product_codes:
-                    # ProductCode for specific architecture in Installers section
-                    line = ' ' * indent + f"ProductCode: '{product_codes[current_arch]}'"
-                    print(f"  ✅ Updated {current_arch} ProductCode in Installers")
+                    context_key = f'installer_{current_arch}'
+                    if context_key not in updated_contexts:
+                        # ProductCode for specific architecture in Installers section
+                        line = ' ' * indent + f"ProductCode: '{product_codes[current_arch]}'"
+                        print(f"  ✅ Updated {current_arch} ProductCode in Installers")
+                        should_update = True
+                    else:
+                        print(f"  ⚠️  Removed duplicate ProductCode for {current_arch} in Installers")
+                        continue
                 elif not in_apps_features and not in_installers_section and 'default' in product_codes:
-                    # Top-level ProductCode (single-arch, before Installers section)
-                    line = ' ' * indent + f"ProductCode: '{product_codes['default']}'"
-                    print(f"  ✅ Updated top-level ProductCode")
+                    context_key = 'top_level'
+                    if context_key not in updated_contexts:
+                        # Top-level ProductCode (single-arch, before Installers section)
+                        line = ' ' * indent + f"ProductCode: '{product_codes['default']}'"
+                        print(f"  ✅ Updated top-level ProductCode")
+                        should_update = True
+                    else:
+                        print(f"  ⚠️  Removed duplicate top-level ProductCode")
+                        continue
                 elif current_arch and current_arch in product_codes:
-                    # Fallback for architecture-specific ProductCode
-                    line = ' ' * indent + f"ProductCode: '{product_codes[current_arch]}'"
-                    print(f"  ✅ Updated {current_arch} ProductCode")
+                    context_key = f'fallback_{current_arch}'
+                    if context_key not in updated_contexts:
+                        # Fallback for architecture-specific ProductCode
+                        line = ' ' * indent + f"ProductCode: '{product_codes[current_arch]}'"
+                        print(f"  ✅ Updated {current_arch} ProductCode")
+                        should_update = True
+                    else:
+                        print(f"  ⚠️  Removed duplicate ProductCode for {current_arch}")
+                        continue
+                
+                if should_update and context_key:
+                    updated_contexts.add(context_key)
             
             updated_lines.append(line)
         
         content = '\n'.join(updated_lines)
     
     # Update ReleaseDate to today (ISO 8601 format: YYYY-MM-DD)
-    # Only updates if ReleaseDate field exists in manifest (typically in installer manifest)
+    # Only updates if ReleaseDate field already exists in manifest
     today = datetime.now().strftime('%Y-%m-%d')
     if re.search(r'ReleaseDate:\s*[\d-]+', content):
+        # Use a function to replace only the first occurrence
+        count = [0]  # Mutable container to track count
+        def replace_release_date(match):
+            count[0] += 1
+            if count[0] == 1:
+                return f'ReleaseDate: {today}'
+            else:
+                print(f"  ⚠️  Removed duplicate ReleaseDate (occurrence #{count[0]})")
+                return ''  # Remove duplicate
+        
         content = re.sub(
             r'ReleaseDate:\s*[\d-]+',
-            f'ReleaseDate: {today}',
+            replace_release_date,
             content
         )
-        print(f"  ✅ Updated ReleaseDate to {today}")
+        # Clean up empty lines left by removed duplicates
+        content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
+        if count[0] > 0:
+            print(f"  ✅ Updated ReleaseDate to {today}")
+            if count[0] > 1:
+                print(f"     (Removed {count[0] - 1} duplicate(s))")
     
-    # Update ReleaseNotes if provided (for GitHub releases)
-    # Only updates if ReleaseNotes field exists in manifest (typically in locale manifest)
-    if release_notes:
+    # Update ReleaseNotes if provided AND field already exists in manifest
+    # Only updates if ReleaseNotes field already exists in manifest (typically in locale manifest)
+    if release_notes and re.search(r'ReleaseNotes:', content):
         # Escape special characters for YAML block scalar
         # Use |- for literal block scalar (strips trailing newlines)
         yaml_notes = release_notes.replace('\r\n', '\n').replace('\r', '\n')
@@ -402,31 +660,69 @@ def update_manifest_content(
         # Replace ReleaseNotes field (handles both single line and block scalar)
         if re.search(r'ReleaseNotes:\s*\|-', content):
             # Block scalar format - replace everything until next field
+            # Use a counter to replace only first occurrence
+            count = [0]
+            def replace_notes_block(match):
+                count[0] += 1
+                if count[0] == 1:
+                    return f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}\n'
+                else:
+                    print(f"  ⚠️  Removed duplicate ReleaseNotes block (occurrence #{count[0]})")
+                    return ''
+            
             content = re.sub(
                 r'ReleaseNotes:\s*\|-\n(?:.*\n)*?(?=\w+:)',
-                f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}\n',
+                replace_notes_block,
                 content,
                 flags=re.MULTILINE
             )
-            print(f"  ✅ Updated ReleaseNotes (block scalar)")
-        elif re.search(r'ReleaseNotes:', content):
-            # Single line format - update it
+            content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
+            if count[0] > 0:
+                print(f"  ✅ Updated ReleaseNotes (block scalar)")
+        else:
+            # Single line format - update first occurrence only
+            count = [0]
+            def replace_notes_line(match):
+                count[0] += 1
+                if count[0] == 1:
+                    return f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}'
+                else:
+                    print(f"  ⚠️  Removed duplicate ReleaseNotes (occurrence #{count[0]})")
+                    return ''
+            
             content = re.sub(
                 r'(ReleaseNotes:).*',
-                f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}',
+                replace_notes_line,
                 content
             )
-            print(f"  ✅ Updated ReleaseNotes")
+            content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
+            if count[0] > 0:
+                print(f"  ✅ Updated ReleaseNotes")
     
-    # Update ReleaseNotesUrl if provided
-    # Only updates if ReleaseNotesUrl field exists in manifest (typically in locale manifest)
+    # Update ReleaseNotesUrl if provided AND field already exists in manifest
+    # Only updates if ReleaseNotesUrl field already exists in manifest (typically in locale manifest)
     if release_notes_url and re.search(r'ReleaseNotesUrl:', content):
+        count = [0]
+        def replace_notes_url(match):
+            count[0] += 1
+            if count[0] == 1:
+                return f'ReleaseNotesUrl: {release_notes_url}'
+            else:
+                print(f"  ⚠️  Removed duplicate ReleaseNotesUrl (occurrence #{count[0]})")
+                return ''
+        
         content = re.sub(
             r'ReleaseNotesUrl:.*',
-            f'ReleaseNotesUrl: {release_notes_url}',
+            replace_notes_url,
             content
         )
-        print(f"  ✅ Updated ReleaseNotesUrl")
+        content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
+        if count[0] > 0:
+            print(f"  ✅ Updated ReleaseNotesUrl")
+    
+    # Final cleanup: Remove any remaining duplicate fields
+    # This is a generic cleanup that catches duplicates we might have missed
+    content = remove_duplicate_fields(content)
     
     return content
 
@@ -674,7 +970,10 @@ def process_template_and_create_version(
                 with open(dst_file, 'w', encoding='utf-8') as f:
                     f.write(updated_content)
                 
+                # Validate YAML after writing
                 print(f"Updated: {filename}")
+                if not validate_yaml_content(updated_content, filename):
+                    print(f"  ⚠️  Warning: {filename} may have validation issues")
         
         return True
         
@@ -723,23 +1022,32 @@ def update_manifests(
                 with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
                     tmp_path = tmp_file.name
                 
-                if not download_file(url, tmp_path):
-                    print(f"Failed to download {arch} installer")
-                    os.unlink(tmp_path)
-                    continue
+                try:
+                    if not download_file(url, tmp_path):
+                        print(f"❌ Failed to download {arch} installer")
+                        if os.path.exists(tmp_path):
+                            os.unlink(tmp_path)
+                        continue
+                    
+                    # Calculate SHA256
+                    arch_hash = calculate_sha256(tmp_path)
+                    arch_hashes[arch] = arch_hash
+                    print(f"  ✅ {arch} SHA256: {arch_hash}")
+                    
+                    # Extract ProductCode from MSI files
+                    if is_msi:
+                        product_code = extract_product_code_from_msi(tmp_path)
+                        if product_code:
+                            product_codes[arch] = product_code
                 
-                # Calculate SHA256
-                arch_hash = calculate_sha256(tmp_path)
-                arch_hashes[arch] = arch_hash
-                print(f"  ✅ SHA256: {arch_hash}")
-                
-                # Extract ProductCode from MSI files
-                if is_msi:
-                    product_code = extract_product_code_from_msi(tmp_path)
-                    if product_code:
-                        product_codes[arch] = product_code
-                
-                os.unlink(tmp_path)
+                except Exception as e:
+                    print(f"❌ Error processing {arch} installer: {e}")
+                    import traceback
+                    traceback.print_exc()
+                finally:
+                    # Always cleanup temp file
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
             
             if not arch_hashes:
                 print("Failed to calculate hashes for any architecture")
@@ -768,26 +1076,37 @@ def update_manifests(
             with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
                 tmp_path = tmp_file.name
             
-            if not download_file(installer_url, tmp_path):
+            try:
+                if not download_file(installer_url, tmp_path):
+                    print("❌ Failed to download installer")
+                    return False
+                
+                sha256 = calculate_sha256(tmp_path)
+                print(f"✅ Calculated InstallerSha256: {sha256}")
+                
+                # Calculate SignatureSha256 for MSIX packages
+                signature_sha256 = None
+                if is_msix:
+                    print("MSIX package detected, calculating SignatureSha256...")
+                    signature_sha256 = calculate_msix_signature_sha256(tmp_path)
+                
+                # Extract ProductCode from MSI files
+                product_codes = None
+                if is_msi:
+                    product_code = extract_product_code_from_msi(tmp_path)
+                    if product_code:
+                        product_codes = {'default': product_code}
+                
+            except Exception as e:
+                print(f"❌ Error processing installer: {e}")
+                import traceback
+                traceback.print_exc()
                 return False
+            finally:
+                # Always cleanup temp file
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
             
-            sha256 = calculate_sha256(tmp_path)
-            print(f"Calculated InstallerSha256: {sha256}")
-            
-            # Calculate SignatureSha256 for MSIX packages
-            signature_sha256 = None
-            if is_msix:
-                print("MSIX package detected, calculating SignatureSha256...")
-                signature_sha256 = calculate_msix_signature_sha256(tmp_path)
-            
-            # Extract ProductCode from MSI files
-            product_codes = None
-            if is_msi:
-                product_code = extract_product_code_from_msi(tmp_path)
-                if product_code:
-                    product_codes = {'default': product_code}
-            
-            os.unlink(tmp_path)
             arch_hashes = None
         
         # Update manifest files
