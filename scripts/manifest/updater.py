@@ -53,8 +53,22 @@ def update_manifest_content(
         content = content.replace(old_version, version)
         print(f"  ✅ Replaced all occurrences with {version}")
         
-        # Also replace short version (e.g., 2.3.12 -> 2.4.4 for URL tags)
-        # Only if version ends with .0
+        # Also replace version variants (short version, major.minor, etc.)
+        old_parts = old_version.split('.')
+        new_parts = version.split('.')
+        
+        # Replace major.minor version (e.g., 8.4 -> 9.5 for DisplayName, DefaultInstallLocation)
+        if len(old_parts) >= 2 and len(new_parts) >= 2:
+            old_major_minor = f"{old_parts[0]}.{old_parts[1]}"
+            new_major_minor = f"{new_parts[0]}.{new_parts[1]}"
+            
+            if old_major_minor != new_major_minor:
+                major_minor_count = content.count(old_major_minor)
+                if major_minor_count > 0:
+                    content = content.replace(old_major_minor, new_major_minor)
+                    print(f"  ✅ Also replaced {major_minor_count} occurrences of major.minor version {old_major_minor} with {new_major_minor}")
+        
+        # Also replace short version without trailing .0 (e.g., 2.3.12 -> 2.3.1 for URL tags)
         if old_version.endswith('.0') and version.endswith('.0'):
             old_short = old_version[:-2]  # Remove trailing .0
             new_short = version[:-2]      # Remove trailing .0
@@ -232,7 +246,7 @@ def _update_product_codes(content: str, product_codes: Dict[str, str]) -> str:
             if in_apps_features and 'default' in product_codes:
                 context_key = 'apps_features'
                 if context_key not in updated_contexts:
-                    line = ' ' * indent + f"- ProductCode: '{product_codes['default']}'"
+                    line = ' ' * indent + f"ProductCode: '{product_codes['default']}'"
                     print(f"  ✅ Updated ProductCode in AppsAndFeaturesEntries")
                     should_update = True
                 else:
