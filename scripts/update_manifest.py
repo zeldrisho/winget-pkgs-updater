@@ -17,14 +17,13 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 # Import from modules
-from winget_updater.manifest.pr import check_existing_pr, create_pull_request
-from winget_updater.manifest.hash import (
-    download_file, calculate_sha256, calculate_msix_signature_sha256, 
-    extract_product_code_from_msi
-)
-from winget_updater.manifest.git import clone_winget_pkgs, create_pr_branch, commit_and_push
-from winget_updater.manifest.yaml_utils import validate_yaml_content
-from winget_updater.manifest.update import update_manifest_content, add_missing_architectures
+from git.pr import check_existing_pr, create_pull_request
+from git.repo import clone_winget_pkgs, create_pr_branch, commit_and_push
+from package.hasher import download_file, calculate_sha256
+from package.msix import calculate_msix_signature_sha256
+from package.msi import extract_product_code_from_msi
+from yaml_utils import validate_yaml_content
+from manifest.updater import update_manifest_content, add_missing_architectures
 
 
 def fetch_github_file(repo: str, path: str, branch: str = "master") -> Optional[str]:

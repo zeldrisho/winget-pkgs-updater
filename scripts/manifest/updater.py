@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from typing import Optional, Dict
 
-from .yaml_utils import remove_duplicate_fields
+from yaml_utils import remove_duplicate_fields
 
 
 def update_manifest_content(

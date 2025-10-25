@@ -10,11 +10,11 @@ import json
 from typing import Optional, Dict
 
 # Import modules
-from winget_updater.config import load_checkver_config
-from winget_updater.github import get_latest_version_github, get_github_release_info
-from winget_updater.script import get_latest_version_script
-from winget_updater.url import get_installer_url, verify_installer_exists, get_release_info_from_config
-from winget_updater.web import get_latest_version_from_web
+from config import load_checkver_config
+from version.github import get_latest_version_github, get_github_release_info
+from version.script import get_latest_version_script
+from version.url import get_installer_url, verify_installer_exists, get_release_info_from_config
+from version.web import get_latest_version_from_web
 
 
 def check_version(checkver_path: str) -> Optional[Dict]:
