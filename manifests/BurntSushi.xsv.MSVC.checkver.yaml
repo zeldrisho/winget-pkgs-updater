@@ -9,11 +9,6 @@ checkver:
   repo: BurntSushi/xsv
   regex: "v?([\\d\\.]+)"
 
-updateMetadata:
-  - ReleaseDate
-  - ReleaseNotes
-  - ReleaseNotesUrl
-
 # xsv MSVC installer URLs from GitHub releases
 # Format: xsv-{version}-{arch}-pc-windows-msvc.zip
 # Note: RelativeFilePath is just "xsv.exe" without version

@@ -8,11 +8,6 @@ checkver:
   repo: Stremio/stremio-service
   regex: "v?([\\d\\.]+)"
 
-updateMetadata:
-  - ReleaseDate
-  - ReleaseNotes
-  - ReleaseNotesUrl
-
 # Installer URL template from GitHub releases
 # Example: https://github.com/Stremio/stremio-service/releases/download/v0.1.14/StremioServiceSetup.exe
 installerUrlTemplate: "https://github.com/Stremio/stremio-service/releases/download/v{version}/StremioServiceSetup.exe"

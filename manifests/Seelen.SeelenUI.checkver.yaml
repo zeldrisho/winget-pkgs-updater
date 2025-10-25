@@ -3,34 +3,12 @@ packageIdentifier: Seelen.SeelenUI
 # Example: https://github.com/microsoft/winget-pkgs/tree/master/manifests/s/Seelen/SeelenUI
 manifestPath: manifests/s/Seelen/SeelenUI
 
+# GitHub-based checkver
+# Automatically appends .0 to 3-part versions (2.4.4 -> 2.4.4.0)
 checkver:
-  type: script
-  script: |
-    # Get latest stable release from GitHub API
-    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/eythaann/Seelen-UI/releases/latest"
-    if ($response.tag_name) {
-      # Remove 'v' prefix (e.g., v2.4.4 -> 2.4.4)
-      # GitHub tag is 3-part (2.4.4) but MSIX filename needs 4-part (2.4.4.0)
-      $version = $response.tag_name -replace '^v', ''
-      
-      # Check if version already has 4 parts
-      if (($version.Split('.').Count) -eq 3) {
-        $version = $version + '.0'
-      }
-      
-      # Extract metadata for updateMetadata
-      $releaseNotes = $response.body
-      $releaseNotesUrl = $response.html_url
-      
-      # Output format: version|releaseNotesUrl|releaseNotes
-      Write-Output "$version|$releaseNotesUrl|$releaseNotes"
-    }
-  regex: "(?P<version>[\\d\\.]+)\\|(?P<releaseNotesUrl>[^\\|]+)\\|(?P<releaseNotes>.*)"
-
-updateMetadata:
-  - ReleaseDate
-  - ReleaseNotes
-  - ReleaseNotesUrl
+  type: github
+  repo: eythaann/Seelen-UI
+  appendDotZero: true
 
 # MSIX installer template
 # Tag uses 3-part version (v2.4.4), filename uses 4-part version (2.4.4.0)

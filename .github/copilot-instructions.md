@@ -35,6 +35,41 @@ Example:
 curl -s "https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/r/RustDesk/RustDesk/1.3.2/RustDesk.RustDesk.installer.yaml"
 ```
 
+### GitHub-Based Checkver (Recommended)
+
+**Simple Format:**
+```yaml
+packageIdentifier: Publisher.Package
+manifestPath: manifests/{first-letter}/{publisher}/{package}
+
+checkver:
+  type: github
+  repo: owner/repo  # GitHub repository (e.g., PowerShell/PowerShell)
+  appendDotZero: true  # Optional: append .0 to 3-part versions (7.5.4 -> 7.5.4.0)
+
+# Optional: fetch release metadata from GitHub
+updateMetadata:
+  - ReleaseNotes
+  - ReleaseNotesUrl
+
+installerUrlTemplate: "https://github.com/owner/repo/releases/download/v{version}/app.exe"
+```
+
+**Key Features:**
+- **Type**: `github` - Fetches latest release from GitHub API
+- **appendDotZero**: Set to `true` to automatically append `.0` to 3-part versions
+  - Example: GitHub tag `v7.5.4` becomes WinGet version `7.5.4.0`
+  - Useful for packages like PowerShell, SeelenUI that use 4-part versions in manifests
+- **updateMetadata**: Automatically fetches ReleaseNotes and ReleaseNotesUrl from GitHub
+  - Only updates these fields if they already exist in the old manifest
+
+**Standard Placeholders:**
+- `{version}` - Full version (e.g., 2.3.12.0 or 7.5.4.0)
+- `{versionShort}` - Version without trailing .0 (e.g., 2.3.12 or 7.5.4)
+  - Used for GitHub tags that don't include the `.0` suffix
+
+### Script-Based Checkver (Advanced)
+
 **Basic Structure:**
 ```yaml
 packageIdentifier: Publisher.Package
@@ -46,10 +81,6 @@ checkver:
   regex: "([\\d\\.]+)"
 installerUrlTemplate: "https://example.com/{version}/installer.exe"
 ```
-
-**Standard Placeholders:**
-- `{version}` - Full version (e.g., 2.3.12.0)
-- `{versionShort}` - Version without trailing .0
 
 **Custom Metadata (Advanced):**
 Use Python named groups to extract additional data:
@@ -67,7 +98,8 @@ replace: "${3}.${1}.${2}"  # Outputs: 2025.10.13
 ```
 Use `${1}`, `${2}`, etc. to reference capture groups.
 
-**Multi-Architecture URLs:**
+### Multi-Architecture URLs
+
 ```yaml
 installerUrlTemplate:
   x64: "https://example.com/{version}-win64.zip"

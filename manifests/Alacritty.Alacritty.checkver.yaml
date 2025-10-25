@@ -8,11 +8,6 @@ checkver:
   repo: alacritty/alacritty
   regex: "v?([\\d\\.]+)"
 
-updateMetadata:
-  - ReleaseDate
-  - ReleaseNotes
-  - ReleaseNotesUrl
-
 # Alacritty installer URL from GitHub releases
 # Uses MSI installer format: Alacritty-v{version}-installer.msi
 # Note: MSI ProductCode is automatically extracted by update_manifest.py

@@ -9,11 +9,6 @@ checkver:
   repo: microsoftconnect/GameInput
   regex: "v?([\\d\\.]+)"
 
-updateMetadata:
-  - ReleaseDate
-  - ReleaseNotes
-  - ReleaseNotesUrl
-
 # GameInput installer URL from GitHub releases
 # Tag format: v3.0.26100.6154, installer filename: GameInputRedist.msi
 installerUrlTemplate: "https://github.com/microsoftconnect/GameInput/releases/download/v{version}/GameInputRedist.msi"

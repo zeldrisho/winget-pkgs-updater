@@ -4,27 +4,10 @@ packageIdentifier: RustDesk.RustDesk
 # Raw manifest reference: https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/r/RustDesk/RustDesk/1.3.2/RustDesk.RustDesk.installer.yaml
 manifestPath: manifests/r/RustDesk/RustDesk
 
+# GitHub-based checkver
 checkver:
-  type: script
-  script: |
-    # Get latest stable release from GitHub API
-    # https://github.com/rustdesk/rustdesk
-    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/rustdesk/rustdesk/releases/latest"
-    if ($response.tag_name) {
-      # Tag format: 1.4.2 (no 'v' prefix)
-      $version = $response.tag_name
-      $releaseNotes = $response.body
-      $releaseNotesUrl = $response.html_url
-      
-      # Output format: version|releaseNotesUrl|releaseNotes
-      Write-Output "$version|$releaseNotesUrl|$releaseNotes"
-    }
-  regex: "(?P<version>[\\d\\.]+)\\|(?P<releaseNotesUrl>[^\\|]+)\\|(?P<releaseNotes>.*)"
-
-updateMetadata:
-  - ReleaseDate
-  - ReleaseNotes
-  - ReleaseNotesUrl
+  type: github
+  repo: rustdesk/rustdesk
 
 # RustDesk installer URLs from GitHub releases
 # x86 uses -x86-sciter.exe, x64 uses -x86_64.exe

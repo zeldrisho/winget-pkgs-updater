@@ -9,11 +9,6 @@ checkver:
   repo: BurntSushi/ripgrep
   regex: "v?([\\d\\.]+)"
 
-updateMetadata:
-  - ReleaseDate
-  - ReleaseNotes
-  - ReleaseNotesUrl
-
 # ripgrep MSVC installer URLs from GitHub releases
 # Format: ripgrep-{version}-{arch}-pc-windows-msvc.zip
 # Note: RelativeFilePath contains version string that needs updating

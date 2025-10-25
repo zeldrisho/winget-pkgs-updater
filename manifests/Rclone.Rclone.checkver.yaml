@@ -4,27 +4,10 @@ packageIdentifier: Rclone.Rclone
 # Raw manifest reference: https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/r/Rclone/Rclone/1.71.2/Rclone.Rclone.installer.yaml
 manifestPath: manifests/r/Rclone/Rclone
 
+# GitHub-based checkver
 checkver:
-  type: script
-  script: |
-    # Get latest release from GitHub API
-    # https://github.com/rclone/rclone
-    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/rclone/rclone/releases/latest"
-    if ($response.tag_name) {
-      # Tag format: v1.71.2 (with 'v' prefix)
-      $version = $response.tag_name -replace '^v', ''
-      $releaseNotes = $response.body
-      $releaseNotesUrl = $response.html_url
-      
-      # Output format: version|releaseNotesUrl|releaseNotes
-      Write-Output "$version|$releaseNotesUrl|$releaseNotes"
-    }
-  regex: "(?P<version>[\\d\\.]+)\\|(?P<releaseNotesUrl>[^\\|]+)\\|(?P<releaseNotes>.*)"
-
-updateMetadata:
-  - ReleaseDate
-  - ReleaseNotes
-  - ReleaseNotesUrl
+  type: github
+  repo: rclone/rclone
 
 # Rclone installer URLs from GitHub releases
 # Format: rclone-v{version}-windows-{arch}.zip

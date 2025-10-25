@@ -9,11 +9,6 @@ checkver:
   repo: BurntSushi/ripgrep
   regex: "v?([\\d\\.]+)"
 
-updateMetadata:
-  - ReleaseDate
-  - ReleaseNotes
-  - ReleaseNotesUrl
-
 # ripgrep GNU installer URL from GitHub releases
 # Format: ripgrep-{version}-x86_64-pc-windows-gnu.zip
 # Note: RelativeFilePath contains version string that needs updating

@@ -5,28 +5,11 @@ packageIdentifier: Microsoft.PowerShell
 manifestPath: manifests/m/Microsoft/PowerShell
 
 # GitHub-based checkver
-# Use script to append .0 to version (GitHub: 7.5.4 -> WinGet: 7.5.4.0)
+# Automatically appends .0 to 3-part versions (7.5.4 -> 7.5.4.0)
 checkver:
-  type: script
-  script: |
-    # Get latest release from GitHub API
-    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/PowerShell/PowerShell/releases/latest"
-    if ($response.tag_name) {
-      # Tag format: v7.5.4 (with 'v' prefix)
-      # Remove 'v' and append '.0' for WinGet format
-      $version = $response.tag_name.TrimStart('v') + '.0'
-      $releaseNotes = $response.body
-      $releaseNotesUrl = $response.html_url
-      
-      # Output format: version|releaseNotesUrl|releaseNotes
-      Write-Output "$version|$releaseNotesUrl|$releaseNotes"
-    }
-  regex: "(?P<version>[\\d\\.]+)\\|(?P<releaseNotesUrl>[^\\|]+)\\|(?P<releaseNotes>.*)"
-
-updateMetadata:
-  - ReleaseDate
-  - ReleaseNotes
-  - ReleaseNotesUrl
+  type: github
+  repo: PowerShell/PowerShell
+  appendDotZero: true
 
 # PowerShell installer URLs from GitHub releases
 # Format: https://github.com/PowerShell/PowerShell/releases/download/v{versionShort}/PowerShell-{versionShort}-win-{arch}.msi

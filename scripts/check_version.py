@@ -49,6 +49,10 @@ def get_latest_version_github(checkver_config: Dict) -> Optional[tuple]:
     Supports two config formats:
     1. checkver: { type: "github", repo: "owner/repo", ... }
     2. checkver: "github" with github: { owner: "...", repo: "..." }
+    
+    Handles version formatting:
+    - If appendDotZero is true, appends .0 to 3-part versions (e.g., 7.5.4 -> 7.5.4.0)
+    - Useful for packages that use 3-part versions in GitHub but 4-part in WinGet
     """
     try:
         checkver = checkver_config.get('checkver', {})
@@ -63,6 +67,7 @@ def get_latest_version_github(checkver_config: Dict) -> Optional[tuple]:
                 return None
             repo_full = f"{owner}/{repo}"
             regex_pattern = github_config.get('regex', 'v?([\\d\\.]+)')
+            append_dot_zero = github_config.get('appendDotZero', False)
         # Support dict format: checkver: { type: "github", repo: "owner/repo" }
         elif isinstance(checkver, dict) and checkver.get('type') == 'github':
             repo_full = checkver.get('repo', '')
@@ -70,6 +75,7 @@ def get_latest_version_github(checkver_config: Dict) -> Optional[tuple]:
                 print("Missing 'repo' field in GitHub checkver config")
                 return None
             regex_pattern = checkver.get('regex', 'v?([\\d\\.]+)')
+            append_dot_zero = checkver.get('appendDotZero', False)
         else:
             return None
         
@@ -98,6 +104,14 @@ def get_latest_version_github(checkver_config: Dict) -> Optional[tuple]:
         else:
             # Fallback: remove 'v' prefix if present
             version = tag_name.lstrip('v')
+        
+        # Handle version formatting based on appendDotZero setting
+        if append_dot_zero:
+            # Check if version has exactly 3 parts (e.g., 7.5.4)
+            version_parts = version.split('.')
+            if len(version_parts) == 3:
+                version = version + '.0'
+                print(f"Appended .0 to version: {version}")
         
         print(f"Latest version found: {version}")
         
