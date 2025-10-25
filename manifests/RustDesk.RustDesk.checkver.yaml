@@ -1,13 +1,7 @@
-packageIdentifier: RustDesk.RustDesk
-manifestPath: manifests/r/RustDesk/RustDesk
-
 checkver:
   type: github
   repo: rustdesk/rustdesk
 
-updateMetadata:
-  - ReleaseNotes
-  - ReleaseNotesUrl
 
 installerUrlTemplate:
   x86: "https://github.com/rustdesk/rustdesk/releases/download/{version}/rustdesk-{version}-x86-sciter.exe"

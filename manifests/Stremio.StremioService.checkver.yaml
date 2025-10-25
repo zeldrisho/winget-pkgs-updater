@@ -1,6 +1,3 @@
-packageIdentifier: Stremio.StremioService
-manifestPath: manifests/s/Stremio/StremioService
-
 checkver:
   type: github
   repo: Stremio/stremio-service

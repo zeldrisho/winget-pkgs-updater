@@ -41,7 +41,7 @@ Automated tool that monitors software packages and creates pull requests to [mic
    - **If standard fields only:** Proceed to write checkver configuration
 
 4. **Create Checkver:**
-   - Write checkver YAML following standard patterns
+   - Write clean, minimal checkver YAML following standard patterns (no comments)
    - Test with `check_version.py` to verify it works
 
 **Example unusual fields to watch for:**
@@ -69,18 +69,10 @@ curl -s "https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifest
 
 **Simple Format:**
 ```yaml
-packageIdentifier: Publisher.Package
-manifestPath: manifests/{first-letter}/{publisher}/{package}
-
 checkver:
   type: github
-  repo: owner/repo  # GitHub repository (e.g., PowerShell/PowerShell)
-  appendDotZero: true  # Optional: append .0 to 3-part versions (7.5.4 -> 7.5.4.0)
-
-# Optional: fetch release metadata from GitHub
-updateMetadata:
-  - ReleaseNotes
-  - ReleaseNotesUrl
+  repo: owner/repo
+  appendDotZero: true
 
 installerUrlTemplate: "https://github.com/owner/repo/releases/download/v{version}/app.exe"
 ```
@@ -90,41 +82,56 @@ installerUrlTemplate: "https://github.com/owner/repo/releases/download/v{version
 - **appendDotZero**: Set to `true` to automatically append `.0` to 3-part versions
   - Example: GitHub tag `v7.5.4` becomes WinGet version `7.5.4.0`
   - Useful for packages like PowerShell, SeelenUI that use 4-part versions in manifests
-- **updateMetadata**: Automatically fetches ReleaseNotes and ReleaseNotesUrl from GitHub
-  - Only updates these fields if they already exist in the old manifest
+- **Metadata**: ReleaseNotes and ReleaseNotesUrl are ALWAYS fetched from GitHub API
+  - Automatically updates if these fields exist in the old manifest
+  - No configuration needed
 
 **Standard Placeholders:**
 - `{version}` - Full version (e.g., 2.3.12.0 or 7.5.4.0)
 - `{versionShort}` - Version without trailing .0 (e.g., 2.3.12 or 7.5.4)
   - Used for GitHub tags that don't include the `.0` suffix
 
+**Auto-Derived Fields:**
+The following fields are automatically derived from the filename and NO LONGER need to be specified:
+- `packageIdentifier` - Derived from filename (e.g., `Microsoft.PowerShell.checkver.yaml` → `Microsoft.PowerShell`)
+- `manifestPath` - Derived from packageIdentifier (e.g., `Microsoft.PowerShell` → `manifests/m/Microsoft/PowerShell`)
+
 ### Script-Based Checkver (Advanced)
 
 **Basic Structure:**
 ```yaml
-packageIdentifier: Publisher.Package
-manifestPath: manifests/{first-letter}/{publisher}/{package}
 checkver:
   type: script
   script: |
     # PowerShell code that outputs version string
   regex: "([\\d\\.]+)"
+
 installerUrlTemplate: "https://example.com/{version}/installer.exe"
 ```
 
 **Custom Metadata (Advanced):**
 Use Python named groups to extract additional data:
 ```yaml
-regex: "(?P<version>[\\d\\.]+)\\|(?P<build>[^\\|]+)"
+checkver:
+  type: script
+  script: |
+    # PowerShell code
+  regex: "(?P<version>[\\d\\.]+)\\|(?P<build>[^\\|]+)"
+
 installerUrlTemplate: "https://example.com/app-{build}.zip"
 ```
 
 **Regex Replace Pattern:**
 Transform matched strings using `replace` field (similar to scoop's checkver):
 ```yaml
-# Example: Convert date MM/DD/YYYY to version YYYY.MM.DD
-regex: "(\\d{2})/(\\d{2})/(\\d{4})"
-replace: "${3}.${1}.${2}"  # Outputs: 2025.10.13
+checkver:
+  type: script
+  script: |
+    # PowerShell code
+  regex: "(\\d{2})/(\\d{2})/(\\d{4})"
+  replace: "${3}.${1}.${2}"
+
+installerUrlTemplate: "https://example.com/{version}/app.exe"
 ```
 Use `${1}`, `${2}`, etc. to reference capture groups.
 
@@ -144,71 +151,77 @@ The system copies the entire manifest folder from the previous version and updat
 - `InstallerSha256`: Recalculated from downloaded installer
 - `SignatureSha256`: Recalculated if MSIX package
 - `InstallerUrl`: Updated if contains `{version}` placeholder
-- `ProductCode`: Updated if provided (multi-arch supported)
 - `RelativeFilePath`: Updated via global version string replacement
 
 **Fields conditionally updated** (only if already exist in old manifest):
+- `ProductCode`: Automatically extracted from MSI files and updated (if field exists in old manifest)
 - `ReleaseDate`: Always updated to current date (if field exists)
 - `ReleaseNotes`: Updated from GitHub API (if field exists and checkver type is 'github')
 - `ReleaseNotesUrl`: Updated from GitHub API (if field exists and checkver type is 'github')
 
 **All other fields**: Preserved unchanged from previous version (Publisher, License, Description, Tags, Copyright, etc.)
 
-**No configuration needed** - the system intelligently detects which fields exist and updates appropriately.
+**No configuration needed** - the system intelligently detects which fields exist in the template manifest and updates appropriately.
 
-Example for GitHub-based packages:
+Example checkver (clean, no comments):
 ```yaml
 checkver:
   type: github
   repo: owner/repo
-  regex: "v?([\\d\\.]+)"
-# System automatically handles all field updates based on manifest structure
+
+installerUrlTemplate: "https://github.com/owner/repo/releases/download/v{version}/app.msi"
 ```
 
 **Fetching from Raw Sources:**
 For packages where version info comes from raw text files (like documentation or release notes):
 ```yaml
-# Example: Sysinternals Suite uses static download URLs
-# Version is determined by documentation date in GitHub markdown file
 checkver:
+  type: script
   script: |
     $response = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/..." -UseBasicParsing
     Write-Output $response.Content
   regex: "ms\\.date: (\\d{2})/(\\d{2})/(\\d{4})"
-  replace: "${3}.${1}.${2}"  # Converts MM/DD/YYYY to YYYY.MM.DD
+  replace: "${3}.${1}.${2}"
 
 installerUrlTemplate:
   x64: "https://download.example.com/files/Package.zip"
-  # URL doesn't change, but version metadata from raw source is used
 ```
 The updater:
 1. Scrapes version info from raw sources (docs, changelogs, etc.)
-2. Fetches existing manifests from microsoft/winget-pkgs using `manifestPath`
-3. Copies the latest version folder and updates version strings + SHA256 hashes
-4. Creates a new version folder with updated manifests
+2. Auto-derives `manifestPath` from package identifier
+3. Fetches existing manifests from microsoft/winget-pkgs
+4. Copies the latest version folder and updates version strings + SHA256 hashes
+5. Automatically extracts ProductCode from MSI files (if ProductCode field exists in old manifest)
+6. Creates a new version folder with updated manifests
 
-**Manifest Path Structure:**
-The `manifestPath` follows WinGet's folder structure:
+**Manifest Path Auto-Derivation:**
+The system automatically calculates `manifestPath` from the checkver filename:
 ```
-manifests/{first-letter}/{publisher}/{package}/{version}/
-```
-Examples:
-- `manifests/m/Microsoft/Sysinternals/Suite/2025.10.13/`
-- `manifests/s/Seelen/SeelenUI/2.0.0/`
-- `manifests/v/VNGCorp/Zalo/24.10.2/`
+Filename: Microsoft.PowerShell.checkver.yaml
+  → packageIdentifier: Microsoft.PowerShell
+  → manifestPath: manifests/m/Microsoft/PowerShell
 
-The path can be longer than the basic structure as needed.
+Filename: VNGCorp.Zalo.checkver.yaml
+  → packageIdentifier: VNGCorp.Zalo
+  → manifestPath: manifests/v/VNGCorp/Zalo
+```
 
 ## Key Concepts
 
+- **Auto-Derived Fields:** `packageIdentifier` and `manifestPath` are automatically derived from filename
+- **GitHub Metadata:** For GitHub-based packages, ReleaseNotes/ReleaseNotesUrl are ALWAYS fetched (no config needed)
 - **Manifest Copy & Update Strategy:** System copies entire manifest folder from previous version, then selectively updates only necessary fields
 - **Required Field Updates:** PackageVersion, InstallerSha256, URLs with {version} placeholder are always updated
-- **Conditional Field Updates:** ReleaseDate/ReleaseNotes/ReleaseNotesUrl are only updated if they exist in old manifest
+- **Conditional Field Updates:** Only updated if they exist in old manifest:
+  - ReleaseDate/ReleaseNotes/ReleaseNotesUrl
+  - ProductCode (automatically extracted from MSI files)
+  - SignatureSha256 (automatically calculated for MSIX packages)
 - **Global String Replacement:** All occurrences of old version are replaced with new version (handles RelativeFilePath, DisplayVersion, etc.)
 - **Field Preservation:** All other fields (Publisher, License, Tags, Copyright, etc.) remain unchanged from previous version
 - **PowerShell Scripts:** Use `pwsh` for version detection (30s timeout)
 - **Python Named Groups:** Use `(?P<name>...)` NOT `(?<name>...)`
-- **MSIX Packages:** Require both SHA256 and SignatureSha256
+- **Clean Checkver Files:** Do NOT add comments to checkver YAML files - keep them minimal and clean
+- **Installer URL Template:** MUST be specified - handles version placeholders and multi-architecture support
 
 ## Testing
 

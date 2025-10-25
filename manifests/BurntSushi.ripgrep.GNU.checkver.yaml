@@ -1,6 +1,3 @@
-packageIdentifier: BurntSushi.ripgrep.GNU
-manifestPath: manifests/b/BurntSushi/ripgrep/GNU
-
 checkver:
   type: github
   repo: BurntSushi/ripgrep

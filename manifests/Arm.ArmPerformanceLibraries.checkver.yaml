@@ -1,6 +1,3 @@
-packageIdentifier: Arm.ArmPerformanceLibraries
-manifestPath: manifests/a/Arm/ArmPerformanceLibraries
-
 checkver:
   type: script
   script: |

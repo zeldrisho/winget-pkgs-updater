@@ -1,6 +1,3 @@
-packageIdentifier: VNGCorp.Zalo
-manifestPath: manifests/v/VNGCorp/Zalo
-
 checkver:
   type: script
   script: |

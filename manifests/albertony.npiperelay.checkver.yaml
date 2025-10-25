@@ -1,5 +1,3 @@
-packageIdentifier: albertony.npiperelay
-manifestPath: manifests/a/albertony/npiperelay
 checkver:
   type: github
   repo: albertony/npiperelay

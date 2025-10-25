@@ -1,0 +1,11 @@
+checkver:
+  type: script
+  script: |
+    $response = Invoke-WebRequest -Uri "https://docs.microsoft.com/en-us/deployedge/microsoft-edge-relnote-stable-channel" -UseBasicParsing
+    Write-Output $response.Content
+  regex: ">Version ([\\d.]+)"
+
+installerUrlTemplate:
+  x86: "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/1a40bd02-10ee-401e-bbfd-508675a60c39/MicrosoftEdgeEnterpriseX86.msi"
+  x64: "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d524a684-223c-4353-ac48-352850f50294/MicrosoftEdgeEnterpriseX64.msi"
+  arm64: "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/b91764aa-c8b2-49a9-8b3b-14ce3371f528/MicrosoftEdgeEnterpriseARM64.msi"

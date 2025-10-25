@@ -1,5 +1,3 @@
-packageIdentifier: UniKey.UniKey
-manifestPath: manifests/u/UniKey/UniKey
 checkver:
   type: script
   script: |

@@ -1,6 +1,3 @@
-packageIdentifier: BurntSushi.xsv.GNU
-manifestPath: manifests/b/BurntSushi/xsv/GNU
-
 checkver:
   type: github
   repo: BurntSushi/xsv

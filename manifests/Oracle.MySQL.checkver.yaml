@@ -1,0 +1,8 @@
+checkver:
+  type: script
+  script: |
+    $output = & wget -qO- "https://dev.mysql.com/downloads/mysql/?tpl=files&os=src" 2>&1
+    Write-Output $output
+  regex: "\\(mysql-([\\d.]+)\\.zip\\)"
+
+installerUrlTemplate: "https://cdn.mysql.com/Downloads/MySQL-{version}/mysql-{version}-winx64.msi"

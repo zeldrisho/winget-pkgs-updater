@@ -1,5 +1,3 @@
-packageIdentifier: SiarheiKuchuk.BUtil
-manifestPath: manifests/s/SiarheiKuchuk/BUtil
 checkver:
   type: github
   repo: drweb86/butil

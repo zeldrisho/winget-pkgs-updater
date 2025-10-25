@@ -1,6 +1,3 @@
-packageIdentifier: Alacritty.Alacritty
-manifestPath: manifests/a/Alacritty/Alacritty
-
 checkver:
   type: github
   repo: alacritty/alacritty

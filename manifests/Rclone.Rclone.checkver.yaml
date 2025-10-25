@@ -1,13 +1,7 @@
-packageIdentifier: Rclone.Rclone
-manifestPath: manifests/r/Rclone/Rclone
-
 checkver:
   type: github
   repo: rclone/rclone
 
-updateMetadata:
-  - ReleaseNotes
-  - ReleaseNotesUrl
 
 installerUrlTemplate:
   x86: "https://github.com/rclone/rclone/releases/download/v{version}/rclone-v{version}-windows-386.zip"

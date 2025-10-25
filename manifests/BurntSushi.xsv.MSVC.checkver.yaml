@@ -1,6 +1,3 @@
-packageIdentifier: BurntSushi.xsv.MSVC
-manifestPath: manifests/b/BurntSushi/xsv/MSVC
-
 checkver:
   type: github
   repo: BurntSushi/xsv

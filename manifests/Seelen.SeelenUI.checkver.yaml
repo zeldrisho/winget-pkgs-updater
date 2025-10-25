@@ -1,13 +1,7 @@
-packageIdentifier: Seelen.SeelenUI
-manifestPath: manifests/s/Seelen/SeelenUI
-
 checkver:
   type: github
   repo: eythaann/Seelen-UI
   appendDotZero: true
 
-updateMetadata:
-  - ReleaseNotes
-  - ReleaseNotesUrl
-
 installerUrlTemplate: "https://github.com/eythaann/Seelen-UI/releases/download/v{versionShort}/Seelen.SeelenUI_{version}_x64__p6yyn03m1894e.Msix"
+

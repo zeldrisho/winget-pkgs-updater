@@ -1,16 +1,10 @@
-packageIdentifier: Microsoft.PowerShell
-manifestPath: manifests/m/Microsoft/PowerShell
-
 checkver:
   type: github
   repo: PowerShell/PowerShell
   appendDotZero: true
 
-updateMetadata:
-  - ReleaseNotes
-  - ReleaseNotesUrl
-
 installerUrlTemplate:
   x64: "https://github.com/PowerShell/PowerShell/releases/download/v{versionShort}/PowerShell-{versionShort}-win-x64.msi"
   x86: "https://github.com/PowerShell/PowerShell/releases/download/v{versionShort}/PowerShell-{versionShort}-win-x86.msi"
   arm64: "https://github.com/PowerShell/PowerShell/releases/download/v{versionShort}/PowerShell-{versionShort}-win-arm64.msi"
+

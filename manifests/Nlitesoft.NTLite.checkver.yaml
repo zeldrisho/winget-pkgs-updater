@@ -1,5 +1,3 @@
-packageIdentifier: Nlitesoft.NTLite
-manifestPath: manifests/n/Nlitesoft/NTLite
 checkver:
   type: script
   script: |
