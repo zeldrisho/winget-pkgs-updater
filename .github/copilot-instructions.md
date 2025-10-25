@@ -74,24 +74,34 @@ installerUrlTemplate:
   arm64: "https://example.com/{version}-arm64.zip"
 ```
 
-**Metadata Updates (GitHub Type):**
-For GitHub-based checkvers, you can automatically update metadata from releases:
+**Automatic Manifest Update Process:**
+The system copies the entire manifest folder from the previous version and updates only necessary fields:
+
+**Fields that MUST change** (automatically updated):
+- `PackageVersion`: Updated to new version
+- `InstallerSha256`: Recalculated from downloaded installer
+- `SignatureSha256`: Recalculated if MSIX package
+- `InstallerUrl`: Updated if contains `{version}` placeholder
+- `ProductCode`: Updated if provided (multi-arch supported)
+- `RelativeFilePath`: Updated via global version string replacement
+
+**Fields conditionally updated** (only if already exist in old manifest):
+- `ReleaseDate`: Always updated to current date (if field exists)
+- `ReleaseNotes`: Updated from GitHub API (if field exists and checkver type is 'github')
+- `ReleaseNotesUrl`: Updated from GitHub API (if field exists and checkver type is 'github')
+
+**All other fields**: Preserved unchanged from previous version (Publisher, License, Description, Tags, Copyright, etc.)
+
+**No configuration needed** - the system intelligently detects which fields exist and updates appropriately.
+
+Example for GitHub-based packages:
 ```yaml
 checkver:
   type: github
   repo: owner/repo
   regex: "v?([\\d\\.]+)"
-
-updateMetadata:
-  - ReleaseDate      # Updates to current date
-  - ReleaseNotes     # Fetches from GitHub release body
-  - ReleaseNotesUrl  # Fetches from GitHub release URL
+# System automatically handles all field updates based on manifest structure
 ```
-When `updateMetadata` is defined:
-- System fetches data from GitHub API during version check
-- Updates are applied to locale manifest (if fields exist)
-- Only updates fields that already exist in the manifest
-- ReleaseDate is always updated to current date
 
 **Fetching from Raw Sources:**
 For packages where version info comes from raw text files (like documentation or release notes):
@@ -129,11 +139,14 @@ The path can be longer than the basic structure as needed.
 
 ## Key Concepts
 
-- **Global String Replacement:** update_manifest.py replaces ALL occurrences of old version with new version (including RelativeFilePath)
+- **Manifest Copy & Update Strategy:** System copies entire manifest folder from previous version, then selectively updates only necessary fields
+- **Required Field Updates:** PackageVersion, InstallerSha256, URLs with {version} placeholder are always updated
+- **Conditional Field Updates:** ReleaseDate/ReleaseNotes/ReleaseNotesUrl are only updated if they exist in old manifest
+- **Global String Replacement:** All occurrences of old version are replaced with new version (handles RelativeFilePath, DisplayVersion, etc.)
+- **Field Preservation:** All other fields (Publisher, License, Tags, Copyright, etc.) remain unchanged from previous version
 - **PowerShell Scripts:** Use `pwsh` for version detection (30s timeout)
 - **Python Named Groups:** Use `(?P<name>...)` NOT `(?<name>...)`
 - **MSIX Packages:** Require both SHA256 and SignatureSha256
-- **Metadata Updates:** GitHub checkvers can auto-update ReleaseDate, ReleaseNotes, ReleaseNotesUrl in locale manifests
 
 ## Testing
 

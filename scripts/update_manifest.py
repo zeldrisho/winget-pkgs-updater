@@ -415,8 +415,11 @@ def update_manifest_content(
     2. Replace ALL occurrences of old version with new version
     3. Update SHA256 hashes if provided (supports multi-arch)
     4. Update ProductCode if provided (supports multi-arch)
-    5. Update ReleaseDate to today
-    6. Update ReleaseNotes and ReleaseNotesUrl if provided
+    5. Automatically update ReleaseDate to today (if field exists in old manifest)
+    6. Automatically update ReleaseNotes and ReleaseNotesUrl (if fields exist in old manifest)
+    
+    Note: Fields are only updated if they already exist in the old manifest.
+    No need to define updateMetadata in checkver.yaml - system automatically syncs all fields.
     """
     
     # Extract old version from PackageVersion field
