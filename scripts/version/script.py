@@ -87,6 +87,10 @@ def get_latest_version_script(checkver_config: Dict) -> Optional[Tuple[str, Dict
         # Extract version using regex
         match = re.search(regex_pattern, output)
         if match:
+            # Store the full matched string BEFORE any transformations
+            # This is the complete version string from the script output
+            raw_version = match.group(0)
+            
             # If replace pattern is provided, use it to transform the version
             if replace_pattern:
                 # Replace ${1}, ${2}, etc. with corresponding capture groups
@@ -105,20 +109,33 @@ def get_latest_version_script(checkver_config: Dict) -> Optional[Tuple[str, Dict
             original_version = version
             
             # Normalize version to remove leading zeros in parts
+            # UNLESS a replace pattern was used (which intentionally formats the version)
             # e.g., "7.03.51009.0" -> "7.3.51009.0"
-            normalized_version = normalize_version(version)
-            if normalized_version != version:
-                print(f"Normalized version: {normalized_version}")
-                version = normalized_version
+            if not replace_pattern:
+                normalized_version = normalize_version(version)
+                if normalized_version != version:
+                    print(f"Normalized version: {normalized_version}")
+                    version = normalized_version
             
             # Extract all named groups as metadata
             # This allows custom placeholders like {rcversion}, {build}, etc.
             metadata = match.groupdict()
             
+            # Add raw version (full matched string before replace) to metadata
+            if replace_pattern and raw_version != version:
+                metadata['versionRaw'] = raw_version
+                print(f"Added versionRaw to metadata: {raw_version}")
+            
             # Add original version to metadata for URL templates that need it
             if original_version != version:
                 metadata['versionOriginal'] = original_version
                 print(f"Added versionOriginal to metadata: {original_version}")
+            
+            # Always add raw version (before replace pattern) to metadata
+            # This is useful when replace pattern drops parts of the version
+            if replace_pattern and raw_version != version:
+                metadata['versionRaw'] = raw_version
+                print(f"Added versionRaw to metadata: {raw_version}")
             
             if metadata:
                 print(f"Extracted metadata: {metadata}")

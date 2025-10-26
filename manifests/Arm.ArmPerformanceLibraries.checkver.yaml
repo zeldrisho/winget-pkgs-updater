@@ -10,7 +10,8 @@ checkver:
     }
     $latest = $versions | Select-Object -Unique | Sort-Object {[version]$_} -Descending | Select-Object -First 1
     Write-Output $latest
-  regex: "([\\d.]+)"
+  regex: "(\\d+)\\.(\\d+)(?:\\.(\\d+))?"
+  replace: "${1}.${2}"
 
 installerUrlTemplate:
-  arm64: "https://developer.arm.com/-/cdn-downloads/permalink/Arm-Performance-Libraries/Version_{version}/arm-performance-libraries_{version}_Windows.msi"
+  arm64: "https://developer.arm.com/-/cdn-downloads/permalink/Arm-Performance-Libraries/Version_{versionRaw}/arm-performance-libraries_{versionRaw}_Windows.msi"

@@ -53,7 +53,8 @@ def process_template_and_create_version(
     installer_urls: Optional[Dict[str, str]],
     installer_url: Optional[str],
     product_codes: Optional[Dict[str, str]] = None,
-    metadata: Optional[Dict[str, str]] = None
+    metadata: Optional[Dict[str, str]] = None,
+    expected_return_codes: Optional[list] = None
 ) -> bool:
     """
     Copy and update manifest files from template to new version.
@@ -88,15 +89,16 @@ def process_template_and_create_version(
                         release_notes, release_notes_url, arch_hashes,
                         installer_urls, installer_url, product_codes, metadata
                     )
-                elif is_installer_file and arch_hashes:
-                    # Update installer file with multi-arch hashes and product codes
+                elif is_installer_file:
+                    # Update installer file with multi-arch hashes, product codes, and expected return codes
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256,
                         None, None, arch_hashes,
-                        installer_urls, installer_url, product_codes, metadata
+                        installer_urls, installer_url, product_codes, metadata,
+                        expected_return_codes
                     )
                     # Add missing architectures (e.g., arm64 if not in old version)
-                    if installer_urls:
+                    if arch_hashes and installer_urls:
                         updated_content = add_missing_architectures(
                             updated_content, arch_hashes, installer_urls
                         )
@@ -134,7 +136,8 @@ def update_manifests(
     release_notes: Optional[str] = None,
     release_notes_url: Optional[str] = None,
     installer_urls: Optional[Dict[str, str]] = None,
-    metadata: Optional[Dict[str, str]] = None
+    metadata: Optional[Dict[str, str]] = None,
+    expected_return_codes: Optional[list] = None
 ) -> bool:
     """Update manifest files in the cloned repository"""
     try:
@@ -328,7 +331,8 @@ def update_manifests(
                             return process_template_and_create_version(
                                 repo_dir, manifest_path, version, latest_dir, latest_version,
                                 sha256, signature_sha256, release_notes, release_notes_url,
-                                arch_hashes, installer_urls, installer_url, product_codes, metadata
+                                arch_hashes, installer_urls, installer_url, product_codes, metadata,
+                                expected_return_codes
                             )
                         except Exception as e:
                             print(f"Error fetching template from commit {template_commit}: {e}")
@@ -374,7 +378,8 @@ def update_manifests(
             return process_template_and_create_version(
                 repo_dir, manifest_path, version, latest_dir, latest_version,
                 sha256, signature_sha256, release_notes, release_notes_url,
-                arch_hashes, installer_urls, installer_url, product_codes, metadata
+                arch_hashes, installer_urls, installer_url, product_codes, metadata,
+                expected_return_codes
             )
         
     except Exception as e:
@@ -417,6 +422,9 @@ def main():
     # Get metadata for custom field updates (e.g., DisplayVersion)
     metadata = version_info.get('metadata')
     
+    # Get ExpectedReturnCodes from checkver config if available
+    expected_return_codes = checkver_config.get('ExpectedReturnCodes')
+    
     print(f"Updating {package_id} to version {version}")
     
     if installer_urls:
@@ -427,6 +435,9 @@ def main():
     
     if metadata and 'displayDate' in metadata:
         print(f"📅 Display date: {metadata['displayDate']}")
+    
+    if expected_return_codes:
+        print(f"🔧 ExpectedReturnCodes defined ({len(expected_return_codes)} code(s))")
     
     # Get environment variables
     fork_repo = os.getenv('WINGET_FORK_REPO')
@@ -453,7 +464,7 @@ def main():
         print(f"Using existing fork at: {repo_dir}")
         
         # Update manifests with release notes and multi-arch support
-        if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls, metadata):
+        if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls, metadata, expected_return_codes):
             print("Failed to update manifests")
             sys.exit(1)
         
@@ -473,7 +484,7 @@ def main():
             print(f"Created branch: {branch_name}")
             
             # Update manifests with release notes and multi-arch support
-            if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls, metadata):
+            if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls, metadata, expected_return_codes):
                 print("Failed to update manifests")
                 sys.exit(1)
             

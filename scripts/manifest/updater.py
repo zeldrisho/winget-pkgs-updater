@@ -20,7 +20,8 @@ def update_manifest_content(
     installer_urls: Optional[Dict[str, str]] = None,
     installer_url: Optional[str] = None,
     product_codes: Optional[Dict[str, str]] = None,
-    metadata: Optional[Dict[str, str]] = None
+    metadata: Optional[Dict[str, str]] = None,
+    expected_return_codes: Optional[list] = None
 ) -> str:
     """
     Update version, InstallerUrl, SHA256, and ProductCode in manifest content.
@@ -163,6 +164,12 @@ def update_manifest_content(
                 print(f"  ✅ Updated DisplayVersion to {display_version}")
                 if count[0] > 1:
                     print(f"     (Removed {count[0] - 1} duplicate(s))")
+    
+    # Update ExpectedReturnCodes only if:
+    # 1. expected_return_codes is provided (from checkver config)
+    # 2. ExpectedReturnCodes doesn't already exist in the manifest (preserve existing)
+    if expected_return_codes and not re.search(r'ExpectedReturnCodes:', content):
+        content = _update_expected_return_codes(content, expected_return_codes)
     
     # Final cleanup: Remove any remaining duplicate fields
     content = remove_duplicate_fields(content)
@@ -446,5 +453,48 @@ def add_missing_architectures(content: str, arch_hashes: Dict[str, str], install
     
     # Insert new sections before ManifestType
     lines = lines[:insert_idx] + new_sections + lines[insert_idx:]
+    
+    return '\n'.join(lines)
+
+
+def _update_expected_return_codes(content: str, expected_return_codes: list) -> str:
+    """
+    Insert ExpectedReturnCodes section in installer manifest.
+    This function should only be called if ExpectedReturnCodes doesn't already exist.
+    
+    Args:
+        content: Manifest content
+        expected_return_codes: List of dicts with InstallerReturnCode, ReturnResponse, ReturnResponseUrl
+    
+    Returns:
+        Updated content with ExpectedReturnCodes section
+    """
+    lines = content.split('\n')
+    
+    print(f"  ➕ Adding ExpectedReturnCodes")
+    
+    # Find where to insert ExpectedReturnCodes (before ManifestType)
+    insert_idx = -1
+    for i, line in enumerate(lines):
+        if 'ManifestType:' in line:
+            insert_idx = i
+            break
+    
+    if insert_idx == -1:
+        # If ManifestType not found, add at the end
+        insert_idx = len(lines)
+    
+    # Build ExpectedReturnCodes section
+    return_codes_lines = ['ExpectedReturnCodes:']
+    for code_info in expected_return_codes:
+        return_codes_lines.append(f"- InstallerReturnCode: {code_info['InstallerReturnCode']}")
+        return_codes_lines.append(f"  ReturnResponse: {code_info['ReturnResponse']}")
+        if 'ReturnResponseUrl' in code_info:
+            return_codes_lines.append(f"  ReturnResponseUrl: {code_info['ReturnResponseUrl']}")
+    
+    # Insert the section
+    lines = lines[:insert_idx] + return_codes_lines + lines[insert_idx:]
+    
+    print(f"  ✅ Added ExpectedReturnCodes ({len(expected_return_codes)} code(s))")
     
     return '\n'.join(lines)
