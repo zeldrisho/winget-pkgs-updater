@@ -19,7 +19,8 @@ def update_manifest_content(
     arch_hashes: Optional[Dict[str, str]] = None,
     installer_urls: Optional[Dict[str, str]] = None,
     installer_url: Optional[str] = None,
-    product_codes: Optional[Dict[str, str]] = None
+    product_codes: Optional[Dict[str, str]] = None,
+    metadata: Optional[Dict[str, str]] = None
 ) -> str:
     """
     Update version, InstallerUrl, SHA256, and ProductCode in manifest content.
@@ -31,6 +32,7 @@ def update_manifest_content(
     4. Update ProductCode if provided (supports multi-arch)
     5. Automatically update ReleaseDate to today (if field exists in old manifest)
     6. Automatically update ReleaseNotes and ReleaseNotesUrl (if fields exist in old manifest)
+    7. Update DisplayVersion with metadata if provided (if field exists in old manifest)
     
     Note: Fields are only updated if they already exist in the old manifest.
     """
@@ -140,6 +142,27 @@ def update_manifest_content(
     # Update ReleaseNotesUrl if provided
     if release_notes_url and re.search(r'ReleaseNotesUrl:', content):
         content = _update_release_notes_url(content, release_notes_url)
+    
+    # Update DisplayVersion with metadata if provided (e.g., "17.14.18 (October 2025)")
+    if metadata and 'displayDate' in metadata:
+        display_version = f"{version} ({metadata['displayDate']})"
+        if re.search(r'DisplayVersion:', content):
+            count = [0]
+            def replace_display_version(match):
+                count[0] += 1
+                if count[0] == 1:
+                    indent = len(match.group(0)) - len(match.group(0).lstrip())
+                    return ' ' * indent + f'DisplayVersion: {display_version}'
+                else:
+                    print(f"  ⚠️  Removed duplicate DisplayVersion (occurrence #{count[0]})")
+                    return ''
+            
+            content = re.sub(r'(\s*)DisplayVersion:.*', replace_display_version, content)
+            content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
+            if count[0] > 0:
+                print(f"  ✅ Updated DisplayVersion to {display_version}")
+                if count[0] > 1:
+                    print(f"     (Removed {count[0] - 1} duplicate(s))")
     
     # Final cleanup: Remove any remaining duplicate fields
     content = remove_duplicate_fields(content)

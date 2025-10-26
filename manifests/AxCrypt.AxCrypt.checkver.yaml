@@ -1,0 +1,8 @@
+checkver:
+  type: script
+  script: |
+    $response = Invoke-WebRequest -Uri "https://axcrypt.net/information/release-notes/" -UseBasicParsing
+    Write-Output $response.Content
+  regex: "Windows Desktop ([\\d\\.]+)"
+
+installerUrlTemplate: "https://downloader.axcrypt.net/windows/axcrypt-{versionMajor}-appsetup-win_x64.msi"

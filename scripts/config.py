@@ -41,16 +41,17 @@ def derive_manifest_path(package_id: str) -> str:
     """
     Derive manifest path from package identifier with intelligent detection.
     
-    Handles special cases like:
+    Handles various path patterns:
     - Standard: Microsoft.PowerShell -> manifests/m/Microsoft/PowerShell
     - Version subdirectory: RoyalApps.RoyalTS.7 -> manifests/r/RoyalApps/RoyalTS/7
+    - Deep nesting: Microsoft.VisualStudio.2022.Community -> manifests/m/Microsoft/VisualStudio/2022/Community
     
-    The function will check if the package has version subdirectories by:
-    1. First trying the standard path (treating last part as package name)
-    2. If not found, check if it's a version subdirectory pattern (ends with digit)
-    3. Try alternative path structure
+    The function will check multiple path patterns by querying GitHub:
+    1. Standard path (all after first dot as package name)
+    2. Deep nested paths (each dot creates a subdirectory)
+    3. Version subdirectory patterns (last segment is a number)
     """
-    # Split by first dot to get publisher and remaining parts
+    # Split by first dot to get publisher
     parts = package_id.split('.', 1)
     if len(parts) != 2:
         raise ValueError(f"Invalid package identifier format: {package_id}")
@@ -58,34 +59,48 @@ def derive_manifest_path(package_id: str) -> str:
     publisher, remaining = parts
     first_letter = publisher[0].lower()
     
-    # Standard path: treat entire remaining as package name
+    # Try different path patterns in order of likelihood
+    all_parts = package_id.split('.')
+    
+    # Pattern 1: Deep nested path (each part becomes a directory)
+    # Microsoft.VisualStudio.2022.Community -> manifests/m/Microsoft/VisualStudio/2022/Community
+    deep_path = f"manifests/{first_letter}/{'/'.join(all_parts)}"
+    
+    # Pattern 2: Standard path (Publisher/RestOfPackageId)
+    # Microsoft.PowerShell -> manifests/m/Microsoft/PowerShell
     standard_path = f"manifests/{first_letter}/{publisher}/{remaining}"
     
-    # Check if the last segment looks like a version number (ends with digit)
-    # and there are at least 2 more dots (Publisher.Package.Version)
+    # Pattern 3: Version subdirectory (Publisher/Package/Version)
+    # RoyalApps.RoyalTS.7 -> manifests/r/RoyalApps/RoyalTS/7
     remaining_parts = remaining.split('.')
+    versioned_path = None
     if len(remaining_parts) >= 2 and remaining_parts[-1].isdigit():
-        # Potential version subdirectory pattern
-        # e.g., RoyalApps.RoyalTS.7 -> try manifests/r/RoyalApps/RoyalTS/7
         package_name = '.'.join(remaining_parts[:-1])
         version_dir = remaining_parts[-1]
         versioned_path = f"manifests/{first_letter}/{publisher}/{package_name}/{version_dir}"
-        
-        # Check which path exists on GitHub
-        print(f"Checking for version subdirectory pattern...", flush=True)
-        if check_path_exists_on_github(versioned_path):
-            print(f"  ✓ Found versioned path: {versioned_path}", flush=True)
-            return versioned_path
-        elif check_path_exists_on_github(standard_path):
-            print(f"  ✓ Found standard path: {standard_path}", flush=True)
-            return standard_path
-        else:
-            # Default to versioned path if neither exists (for new packages)
-            print(f"  ⚠ Neither path exists, using versioned path for new package", flush=True)
-            return versioned_path
     
-    # Standard case: no version subdirectory
-    return standard_path
+    # Check paths in order: deep nested -> versioned -> standard
+    paths_to_check = [
+        ("deep nested", deep_path),
+        ("versioned", versioned_path) if versioned_path else None,
+        ("standard", standard_path)
+    ]
+    paths_to_check = [p for p in paths_to_check if p is not None]
+    
+    print(f"Detecting manifest path pattern for {package_id}...", flush=True)
+    for path_type, path in paths_to_check:
+        if check_path_exists_on_github(path):
+            print(f"  ✓ Found {path_type} path: {path}", flush=True)
+            return path
+    
+    # If nothing exists, prefer deep nested for packages with 3+ parts
+    # (like Microsoft.VisualStudio.2022.Community), otherwise use standard
+    if len(all_parts) > 2:
+        print(f"  ⚠ Path doesn't exist yet, using deep nested path for new package", flush=True)
+        return deep_path
+    else:
+        print(f"  ⚠ Path doesn't exist yet, using standard path for new package", flush=True)
+        return standard_path
 
 
 def load_checkver_config(checkver_path: str) -> Dict:

@@ -1,0 +1,23 @@
+checkver:
+  type: script
+  script: |
+    $uri = "https://learn.microsoft.com/en-us/visualstudio/releases/2022/release-notes?tabs=allfeatures"
+    $content = Invoke-RestMethod $uri
+    $content -match 'Version ([\d\.]+)</h2>\s*<p><em>Released ([^<]+(?:<sup>.*?</sup>)?[^<]+)</em>' | Out-Null
+    $version = $Matches[1]
+    $dateRaw = $Matches[2] -replace '<sup>.*?</sup>', ''
+    $dateRaw = $dateRaw.Trim() -replace ',\s*', ' '
+    if ($dateRaw -match '^([A-Za-z]+)\s+\d+\s+(\d{4})$') {
+      $month = $Matches[1]
+      $year = $Matches[2]
+      $displayDate = "$month $year"
+    } else {
+      $displayDate = $dateRaw
+    }
+    $majorVersion = $version.Split('.')[0]
+    $uri2 = "https://aka.ms/vs/$majorVersion/release/vs_community.exe"
+    $response = (Invoke-WebRequest $uri2).BaseResponse.RequestMessage.RequestUri.AbsolutePath
+    Write-Output "$version|$displayDate|$response"
+  regex: "(?P<version>[\\d.]+)\\|(?P<displayDate>[^\\|]+)\\|/download/pr/(?P<Uuid>[\\w-]+)/(?P<Hash>[\\w]+)/"
+
+installerUrlTemplate: "https://download.visualstudio.microsoft.com/download/pr/{Uuid}/{Hash}/vs_Community.exe"

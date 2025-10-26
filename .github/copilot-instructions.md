@@ -101,7 +101,11 @@ installerUrlTemplate: "https://github.com/owner/repo/releases/download/v{version
 **Auto-Derived Fields:**
 The following fields are automatically derived from the filename and NO LONGER need to be specified:
 - `packageIdentifier` - Derived from filename (e.g., `Microsoft.PowerShell.checkver.yaml` → `Microsoft.PowerShell`)
-- `manifestPath` - Derived from packageIdentifier (e.g., `Microsoft.PowerShell` → `manifests/m/Microsoft/PowerShell`)
+- `manifestPath` - Intelligently derived from packageIdentifier with pattern detection:
+  - **Standard**: `Microsoft.PowerShell` → `manifests/m/Microsoft/PowerShell`
+  - **Deep nested**: `Microsoft.VisualStudio.2022.Community` → `manifests/m/Microsoft/VisualStudio/2022/Community`
+  - **Version subdirectory**: `RoyalApps.RoyalTS.7` → `manifests/r/RoyalApps/RoyalTS/7`
+  - The system queries GitHub to detect the correct pattern automatically
 
 ### Script-Based Checkver (Advanced)
 
@@ -202,16 +206,31 @@ The updater:
 6. Creates a new version folder with updated manifests
 
 **Manifest Path Auto-Derivation:**
-The system automatically calculates `manifestPath` from the checkver filename:
+The system automatically calculates `manifestPath` from the checkver filename with intelligent pattern detection:
 ```
 Filename: Microsoft.PowerShell.checkver.yaml
   → packageIdentifier: Microsoft.PowerShell
   → manifestPath: manifests/m/Microsoft/PowerShell
 
+Filename: Microsoft.VisualStudio.2022.Community.checkver.yaml
+  → packageIdentifier: Microsoft.VisualStudio.2022.Community
+  → manifestPath: manifests/m/Microsoft/VisualStudio/2022/Community (deep nested)
+
+Filename: RoyalApps.RoyalTS.7.checkver.yaml
+  → packageIdentifier: RoyalApps.RoyalTS.7
+  → manifestPath: manifests/r/RoyalApps/RoyalTS/7 (version subdirectory)
+
 Filename: VNGCorp.Zalo.checkver.yaml
   → packageIdentifier: VNGCorp.Zalo
   → manifestPath: manifests/v/VNGCorp/Zalo
 ```
+
+The detection algorithm:
+1. **Deep nested path**: Each dot creates a subdirectory (e.g., `A.B.C.D` → `manifests/a/A/B/C/D`)
+2. **Version subdirectory**: Last segment is a number (e.g., `A.B.7` → `manifests/a/A/B/7`)
+3. **Standard path**: Publisher + remaining package name (e.g., `A.B` → `manifests/a/A/B`)
+
+The system queries GitHub API to verify which pattern exists before selecting the correct one.
 
 ## Key Concepts
 
