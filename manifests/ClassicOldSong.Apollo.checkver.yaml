@@ -1,0 +1,5 @@
+checkver:
+  type: github
+  repo: ClassicOldSong/Apollo
+
+installerUrlTemplate: "https://github.com/ClassicOldSong/Apollo/releases/download/v{version}/Apollo-{version}.exe"

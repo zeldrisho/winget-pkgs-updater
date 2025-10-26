@@ -1,0 +1,8 @@
+checkver:
+  type: script
+  script: |
+    $response = Invoke-WebRequest -Uri "https://support.goto.com/connect/help/whats-new-in-gotoconnect" -UseBasicParsing
+    Write-Output $response.Content
+  regex: "GoTo Desktop App \\(v([\\d\\.]+)\\)"
+
+installerUrlTemplate: "https://goto-desktop.goto.com/GoToSetupMachine-{version}-x64.msi"
