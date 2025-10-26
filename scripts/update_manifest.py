@@ -24,6 +24,7 @@ from package.msix import calculate_msix_signature_sha256
 from package.msi import extract_product_code_from_msi
 from yaml_utils import validate_yaml_content
 from manifest.updater import update_manifest_content, add_missing_architectures
+from version_utils import get_latest_version, compare_versions
 
 
 def fetch_github_file(repo: str, path: str, branch: str = "master") -> Optional[str]:
@@ -53,8 +54,7 @@ def process_template_and_create_version(
     installer_urls: Optional[Dict[str, str]],
     installer_url: Optional[str],
     product_codes: Optional[Dict[str, str]] = None,
-    metadata: Optional[Dict[str, str]] = None,
-    expected_return_codes: Optional[list] = None
+    metadata: Optional[Dict[str, str]] = None
 ) -> bool:
     """
     Copy and update manifest files from template to new version.
@@ -90,12 +90,11 @@ def process_template_and_create_version(
                         installer_urls, installer_url, product_codes, metadata
                     )
                 elif is_installer_file:
-                    # Update installer file with multi-arch hashes, product codes, and expected return codes
+                    # Update installer file with multi-arch hashes and product codes
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256,
                         None, None, arch_hashes,
-                        installer_urls, installer_url, product_codes, metadata,
-                        expected_return_codes
+                        installer_urls, installer_url, product_codes, metadata
                     )
                     # Add missing architectures (e.g., arm64 if not in old version)
                     if arch_hashes and installer_urls:
@@ -136,8 +135,7 @@ def update_manifests(
     release_notes: Optional[str] = None,
     release_notes_url: Optional[str] = None,
     installer_urls: Optional[Dict[str, str]] = None,
-    metadata: Optional[Dict[str, str]] = None,
-    expected_return_codes: Optional[list] = None
+    metadata: Optional[Dict[str, str]] = None
 ) -> bool:
     """Update manifest files in the cloned repository"""
     try:
@@ -331,8 +329,7 @@ def update_manifests(
                             return process_template_and_create_version(
                                 repo_dir, manifest_path, version, latest_dir, latest_version,
                                 sha256, signature_sha256, release_notes, release_notes_url,
-                                arch_hashes, installer_urls, installer_url, product_codes, metadata,
-                                expected_return_codes
+                                arch_hashes, installer_urls, installer_url, product_codes, metadata
                             )
                         except Exception as e:
                             print(f"Error fetching template from commit {template_commit}: {e}")
@@ -344,33 +341,15 @@ def update_manifests(
                 print("No existing versions found")
                 return False
         else:
-            # Sort versions and get latest (only if we didn't already set it from template)
-            # Use a robust sorting key that handles:
-            # - Numeric versions: 1.2.3
-            # - Date-based versions with dots: 2025.10.13
-            # - Date-based versions with hyphens: 2025-09-16
-            def version_sort_key(v):
-                parts = []
-                # Split by both dots and hyphens to handle all formats
-                for x in re.split(r'[.\-]', v):
-                    try:
-                        # Try to convert to int for numeric comparison
-                        parts.append(int(x))
-                    except ValueError:
-                        # If it contains non-numeric characters, treat as 0
-                        # This ensures consistent type (all ints)
-                        parts.append(0)
-                return parts
-            
-            versions.sort(key=version_sort_key)
-            latest_version = versions[-1]
+            # Sort versions and get latest using robust semantic version comparison
+            latest_version = get_latest_version(versions)
             latest_dir = os.path.join(manifest_base, latest_version)
             
-            print(f"Available versions in repository: {', '.join(versions[-5:])}")  # Show last 5
+            print(f"Available versions in repository: {', '.join(versions[-5:]) if len(versions) >= 5 else ', '.join(versions)}")  # Show last 5 or all
             print(f"Selected latest version: {latest_version}")
             
-            # Sanity check: warn if selected version is newer than target version
-            if version_sort_key(latest_version) >= version_sort_key(version):
+            # Sanity check: warn if selected version is newer than or equal to target version
+            if compare_versions(latest_version, version) >= 0:
                 print(f"⚠️  WARNING: Latest version {latest_version} >= target version {version}")
                 print(f"   This might indicate the version already exists or there's a versioning issue")
             
@@ -378,8 +357,7 @@ def update_manifests(
             return process_template_and_create_version(
                 repo_dir, manifest_path, version, latest_dir, latest_version,
                 sha256, signature_sha256, release_notes, release_notes_url,
-                arch_hashes, installer_urls, installer_url, product_codes, metadata,
-                expected_return_codes
+                arch_hashes, installer_urls, installer_url, product_codes, metadata
             )
         
     except Exception as e:
@@ -422,9 +400,6 @@ def main():
     # Get metadata for custom field updates (e.g., DisplayVersion)
     metadata = version_info.get('metadata')
     
-    # Get ExpectedReturnCodes from checkver config if available
-    expected_return_codes = checkver_config.get('ExpectedReturnCodes')
-    
     print(f"Updating {package_id} to version {version}")
     
     if installer_urls:
@@ -435,9 +410,6 @@ def main():
     
     if metadata and 'displayDate' in metadata:
         print(f"📅 Display date: {metadata['displayDate']}")
-    
-    if expected_return_codes:
-        print(f"🔧 ExpectedReturnCodes defined ({len(expected_return_codes)} code(s))")
     
     # Get environment variables
     fork_repo = os.getenv('WINGET_FORK_REPO')
@@ -464,7 +436,7 @@ def main():
         print(f"Using existing fork at: {repo_dir}")
         
         # Update manifests with release notes and multi-arch support
-        if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls, metadata, expected_return_codes):
+        if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls, metadata):
             print("Failed to update manifests")
             sys.exit(1)
         
@@ -484,7 +456,7 @@ def main():
             print(f"Created branch: {branch_name}")
             
             # Update manifests with release notes and multi-arch support
-            if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls, metadata, expected_return_codes):
+            if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls, metadata):
                 print("Failed to update manifests")
                 sys.exit(1)
             

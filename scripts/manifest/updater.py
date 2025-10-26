@@ -6,8 +6,6 @@ import re
 from datetime import datetime
 from typing import Optional, Dict
 
-from yaml_utils import remove_duplicate_fields
-
 
 def update_manifest_content(
     content: str, 
@@ -20,8 +18,7 @@ def update_manifest_content(
     installer_urls: Optional[Dict[str, str]] = None,
     installer_url: Optional[str] = None,
     product_codes: Optional[Dict[str, str]] = None,
-    metadata: Optional[Dict[str, str]] = None,
-    expected_return_codes: Optional[list] = None
+    metadata: Optional[Dict[str, str]] = None
 ) -> str:
     """
     Update version, InstallerUrl, SHA256, and ProductCode in manifest content.
@@ -120,21 +117,8 @@ def update_manifest_content(
     # Update ReleaseDate to today (ISO 8601 format: YYYY-MM-DD)
     today = datetime.now().strftime('%Y-%m-%d')
     if re.search(r'ReleaseDate:\s*[\d-]+', content):
-        count = [0]
-        def replace_release_date(match):
-            count[0] += 1
-            if count[0] == 1:
-                return f'ReleaseDate: {today}'
-            else:
-                print(f"  ⚠️  Removed duplicate ReleaseDate (occurrence #{count[0]})")
-                return ''
-        
-        content = re.sub(r'ReleaseDate:\s*[\d-]+', replace_release_date, content)
-        content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
-        if count[0] > 0:
-            print(f"  ✅ Updated ReleaseDate to {today}")
-            if count[0] > 1:
-                print(f"     (Removed {count[0] - 1} duplicate(s))")
+        content = re.sub(r'ReleaseDate:\s*[\d-]+', f'ReleaseDate: {today}', content)
+        print(f"  ✅ Updated ReleaseDate to {today}")
     
     # Update ReleaseNotes if provided
     if release_notes and re.search(r'ReleaseNotes:', content):
@@ -148,31 +132,8 @@ def update_manifest_content(
     if metadata and 'displayDate' in metadata:
         display_version = f"{version} ({metadata['displayDate']})"
         if re.search(r'DisplayVersion:', content):
-            count = [0]
-            def replace_display_version(match):
-                count[0] += 1
-                if count[0] == 1:
-                    indent = len(match.group(0)) - len(match.group(0).lstrip())
-                    return ' ' * indent + f'DisplayVersion: {display_version}'
-                else:
-                    print(f"  ⚠️  Removed duplicate DisplayVersion (occurrence #{count[0]})")
-                    return ''
-            
-            content = re.sub(r'(\s*)DisplayVersion:.*', replace_display_version, content)
-            content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
-            if count[0] > 0:
-                print(f"  ✅ Updated DisplayVersion to {display_version}")
-                if count[0] > 1:
-                    print(f"     (Removed {count[0] - 1} duplicate(s))")
-    
-    # Update ExpectedReturnCodes only if:
-    # 1. expected_return_codes is provided (from checkver config)
-    # 2. ExpectedReturnCodes doesn't already exist in the manifest (preserve existing)
-    if expected_return_codes and not re.search(r'ExpectedReturnCodes:', content):
-        content = _update_expected_return_codes(content, expected_return_codes)
-    
-    # Final cleanup: Remove any remaining duplicate fields
-    content = remove_duplicate_fields(content)
+            content = re.sub(r'(\s*)DisplayVersion:.*', lambda m: ' ' * (len(m.group(0)) - len(m.group(0).lstrip())) + f'DisplayVersion: {display_version}', content)
+            print(f"  ✅ Updated DisplayVersion to {display_version}")
     
     return content
 
@@ -182,7 +143,6 @@ def _update_multi_arch_urls(content: str, installer_urls: Dict[str, str]) -> str
     lines = content.split('\n')
     updated_lines = []
     current_arch = None
-    updated_archs = set()
     
     for line in lines:
         # Track current architecture
@@ -190,22 +150,15 @@ def _update_multi_arch_urls(content: str, installer_urls: Dict[str, str]) -> str
             match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
             current_arch = match.group(1)
         
-        # Update URL for current architecture (only once per architecture)
+        # Update URL for current architecture
         if 'InstallerUrl:' in line and current_arch and current_arch in installer_urls:
-            if current_arch not in updated_archs:
-                indent = len(line) - len(line.lstrip())
-                line = ' ' * indent + f'InstallerUrl: {installer_urls[current_arch]}'
-                print(f"  ✅ Updated {current_arch} InstallerUrl")
-                updated_archs.add(current_arch)
-            else:
-                print(f"  ⚠️  Removed duplicate InstallerUrl for {current_arch}")
-                continue
+            indent = len(line) - len(line.lstrip())
+            line = ' ' * indent + f'InstallerUrl: {installer_urls[current_arch]}'
+            print(f"  ✅ Updated {current_arch} InstallerUrl")
         
         updated_lines.append(line)
     
-    content = '\n'.join(updated_lines)
-    content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
-    return content
+    return '\n'.join(updated_lines)
 
 
 def _update_multi_arch_hashes(content: str, arch_hashes: Dict[str, str]) -> str:
@@ -213,7 +166,6 @@ def _update_multi_arch_hashes(content: str, arch_hashes: Dict[str, str]) -> str:
     lines = content.split('\n')
     updated_lines = []
     current_arch = None
-    updated_archs = set()
     
     for line in lines:
         # Track current architecture
@@ -221,22 +173,15 @@ def _update_multi_arch_hashes(content: str, arch_hashes: Dict[str, str]) -> str:
             match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
             current_arch = match.group(1)
         
-        # Update hash for current architecture (only once per architecture)
+        # Update hash for current architecture
         if 'InstallerSha256:' in line and current_arch and current_arch in arch_hashes:
-            if current_arch not in updated_archs:
-                indent = len(line) - len(line.lstrip())
-                line = ' ' * indent + f'InstallerSha256: {arch_hashes[current_arch]}'
-                print(f"  ✅ Updated {current_arch} InstallerSha256")
-                updated_archs.add(current_arch)
-            else:
-                print(f"  ⚠️  Removed duplicate InstallerSha256 for {current_arch}")
-                continue
+            indent = len(line) - len(line.lstrip())
+            line = ' ' * indent + f'InstallerSha256: {arch_hashes[current_arch]}'
+            print(f"  ✅ Updated {current_arch} InstallerSha256")
         
         updated_lines.append(line)
     
-    content = '\n'.join(updated_lines)
-    content = re.sub(r'\n\s*\n\s*\n+', '\n\n', content)
-    return content
+    return '\n'.join(updated_lines)
 
 
 def _update_product_codes(content: str, product_codes: Dict[str, str]) -> str:
@@ -246,7 +191,6 @@ def _update_product_codes(content: str, product_codes: Dict[str, str]) -> str:
     current_arch = None
     in_apps_features = False
     in_installers_section = False
-    updated_contexts = set()
     
     for line in lines:
         # Track sections
@@ -270,39 +214,16 @@ def _update_product_codes(content: str, product_codes: Dict[str, str]) -> str:
         # Update ProductCode in different contexts
         if 'ProductCode:' in line:
             indent = len(line) - len(line.lstrip())
-            context_key = None
-            should_update = False
             
             if in_apps_features and 'default' in product_codes:
-                context_key = 'apps_features'
-                if context_key not in updated_contexts:
-                    line = ' ' * indent + f"ProductCode: '{product_codes['default']}'"
-                    print(f"  ✅ Updated ProductCode in AppsAndFeaturesEntries")
-                    should_update = True
-                else:
-                    print(f"  ⚠️  Removed duplicate ProductCode in AppsAndFeaturesEntries")
-                    continue
+                line = ' ' * indent + f"ProductCode: '{product_codes['default']}'"
+                print(f"  ✅ Updated ProductCode in AppsAndFeaturesEntries")
             elif in_installers_section and current_arch and current_arch in product_codes:
-                context_key = f'installer_{current_arch}'
-                if context_key not in updated_contexts:
-                    line = ' ' * indent + f"ProductCode: '{product_codes[current_arch]}'"
-                    print(f"  ✅ Updated {current_arch} ProductCode in Installers")
-                    should_update = True
-                else:
-                    print(f"  ⚠️  Removed duplicate ProductCode for {current_arch} in Installers")
-                    continue
+                line = ' ' * indent + f"ProductCode: '{product_codes[current_arch]}'"
+                print(f"  ✅ Updated {current_arch} ProductCode in Installers")
             elif not in_apps_features and not in_installers_section and 'default' in product_codes:
-                context_key = 'top_level'
-                if context_key not in updated_contexts:
-                    line = ' ' * indent + f"ProductCode: '{product_codes['default']}'"
-                    print(f"  ✅ Updated top-level ProductCode")
-                    should_update = True
-                else:
-                    print(f"  ⚠️  Removed duplicate top-level ProductCode")
-                    continue
-            
-            if should_update and context_key:
-                updated_contexts.add(context_key)
+                line = ' ' * indent + f"ProductCode: '{product_codes['default']}'"
+                print(f"  ✅ Updated top-level ProductCode")
         
         updated_lines.append(line)
     
@@ -315,59 +236,25 @@ def _update_release_notes(content: str, release_notes: str) -> str:
     
     if re.search(r'ReleaseNotes:\s*\|-', content):
         # Block scalar format
-        count = [0]
-        def replace_notes_block(match):
-            count[0] += 1
-            if count[0] == 1:
-                return f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}\n'
-            else:
-                print(f"  ⚠️  Removed duplicate ReleaseNotes block (occurrence #{count[0]})")
-                return ''
-        
         content = re.sub(
             r'ReleaseNotes:\s*\|-\n(?:.*\n)*?(?=\w+:)',
-            replace_notes_block,
+            f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}\n',
             content,
             flags=re.MULTILINE
         )
-        content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
-        if count[0] > 0:
-            print(f"  ✅ Updated ReleaseNotes (block scalar)")
+        print(f"  ✅ Updated ReleaseNotes (block scalar)")
     else:
         # Single line format
-        count = [0]
-        def replace_notes_line(match):
-            count[0] += 1
-            if count[0] == 1:
-                return f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}'
-            else:
-                print(f"  ⚠️  Removed duplicate ReleaseNotes (occurrence #{count[0]})")
-                return ''
-        
-        content = re.sub(r'(ReleaseNotes:).*', replace_notes_line, content)
-        content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
-        if count[0] > 0:
-            print(f"  ✅ Updated ReleaseNotes")
+        content = re.sub(r'(ReleaseNotes:).*', f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}', content)
+        print(f"  ✅ Updated ReleaseNotes")
     
     return content
 
 
 def _update_release_notes_url(content: str, release_notes_url: str) -> str:
     """Update ReleaseNotesUrl field in manifest"""
-    count = [0]
-    def replace_notes_url(match):
-        count[0] += 1
-        if count[0] == 1:
-            return f'ReleaseNotesUrl: {release_notes_url}'
-        else:
-            print(f"  ⚠️  Removed duplicate ReleaseNotesUrl (occurrence #{count[0]})")
-            return ''
-    
-    content = re.sub(r'ReleaseNotesUrl:.*', replace_notes_url, content)
-    content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
-    if count[0] > 0:
-        print(f"  ✅ Updated ReleaseNotesUrl")
-    
+    content = re.sub(r'ReleaseNotesUrl:.*', f'ReleaseNotesUrl: {release_notes_url}', content)
+    print(f"  ✅ Updated ReleaseNotesUrl")
     return content
 
 
@@ -453,48 +340,5 @@ def add_missing_architectures(content: str, arch_hashes: Dict[str, str], install
     
     # Insert new sections before ManifestType
     lines = lines[:insert_idx] + new_sections + lines[insert_idx:]
-    
-    return '\n'.join(lines)
-
-
-def _update_expected_return_codes(content: str, expected_return_codes: list) -> str:
-    """
-    Insert ExpectedReturnCodes section in installer manifest.
-    This function should only be called if ExpectedReturnCodes doesn't already exist.
-    
-    Args:
-        content: Manifest content
-        expected_return_codes: List of dicts with InstallerReturnCode, ReturnResponse, ReturnResponseUrl
-    
-    Returns:
-        Updated content with ExpectedReturnCodes section
-    """
-    lines = content.split('\n')
-    
-    print(f"  ➕ Adding ExpectedReturnCodes")
-    
-    # Find where to insert ExpectedReturnCodes (before ManifestType)
-    insert_idx = -1
-    for i, line in enumerate(lines):
-        if 'ManifestType:' in line:
-            insert_idx = i
-            break
-    
-    if insert_idx == -1:
-        # If ManifestType not found, add at the end
-        insert_idx = len(lines)
-    
-    # Build ExpectedReturnCodes section
-    return_codes_lines = ['ExpectedReturnCodes:']
-    for code_info in expected_return_codes:
-        return_codes_lines.append(f"- InstallerReturnCode: {code_info['InstallerReturnCode']}")
-        return_codes_lines.append(f"  ReturnResponse: {code_info['ReturnResponse']}")
-        if 'ReturnResponseUrl' in code_info:
-            return_codes_lines.append(f"  ReturnResponseUrl: {code_info['ReturnResponseUrl']}")
-    
-    # Insert the section
-    lines = lines[:insert_idx] + return_codes_lines + lines[insert_idx:]
-    
-    print(f"  ✅ Added ExpectedReturnCodes ({len(expected_return_codes)} code(s))")
     
     return '\n'.join(lines)

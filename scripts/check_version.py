@@ -16,6 +16,7 @@ from version.github import get_latest_version_github, get_github_release_info
 from version.script import get_latest_version_script
 from version.url import get_installer_url, verify_installer_exists, get_release_info_from_config
 from version.web import get_latest_version_from_web
+from version_utils import get_latest_version
 
 
 def get_latest_version_in_winget_pkgs(manifest_path: str) -> Optional[str]:
@@ -45,19 +46,8 @@ def get_latest_version_in_winget_pkgs(manifest_path: str) -> Optional[str]:
         if not versions:
             return None
         
-        # Sort versions using the same logic as update_manifest.py
-        import re
-        def version_sort_key(v):
-            parts = []
-            for x in re.split(r'[.\-]', v):
-                try:
-                    parts.append(int(x))
-                except ValueError:
-                    parts.append(0)
-            return parts
-        
-        versions.sort(key=version_sort_key)
-        return versions[-1]  # Return latest version
+        # Use robust version sorting from version_utils
+        return get_latest_version(versions)
         
     except Exception as e:
         print(f"Warning: Could not check microsoft/winget-pkgs: {e}", file=sys.stderr)
