@@ -1,0 +1,5 @@
+checkver:
+  type: github
+  repo: alvesvaren/resizer2
+
+installerUrlTemplate: "https://github.com/alvesvaren/resizer2/releases/download/v{version}/resizer2-setup.exe"

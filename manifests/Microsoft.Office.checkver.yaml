@@ -1,0 +1,13 @@
+checkver:
+  type: script
+  script: |
+    $ProgressPreference = 'SilentlyContinue'
+    $url = 'https://docs.microsoft.com/en-us/officeupdates/odt-release-history'
+    $regex = '<p>Version ([\d.]+)'
+    
+    $cont = $(Invoke-WebRequest $url).Content
+    if (!($cont -match $regex)) { Write-Host "Could not match '$regex' in '$url'"; return }
+    Write-Output $matches[1]
+  regex: "([\\d.]+)"
+
+installerUrlTemplate: "https://officecdn.microsoft.com/pr/wsus/setup.exe"

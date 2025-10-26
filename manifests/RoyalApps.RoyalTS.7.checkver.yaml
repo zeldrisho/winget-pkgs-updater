@@ -1,0 +1,10 @@
+checkver:
+  type: script
+  script: |
+    $response = Invoke-WebRequest -Uri "https://support.royalapps.com/support/solutions/articles/17000128633" -UseBasicParsing
+    Write-Output $response.Content
+  regex: "royalts_([\\d.]+)_x64\\.zip"
+
+installerUrlTemplate:
+  x64: "https://download.royalapps.com/royalts/royaltsinstaller_{version}_x64.msi"
+  arm64: "https://download.royalapps.com/royalts/royaltsinstaller_{version}_arm64.msi"
