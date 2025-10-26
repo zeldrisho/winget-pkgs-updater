@@ -420,11 +420,6 @@ def main():
     if release_notes:
         print(f"📝 Release notes available ({len(release_notes)} chars)")
     
-    # Check if PR already exists BEFORE doing any work (skip if --no-pr)
-    if not args.no_pr and check_existing_pr(package_id, version):
-        print("⏭️  Skipping update - PR already exists")
-        sys.exit(0)  # Exit successfully - no work needed
-    
     # Get environment variables
     fork_repo = os.getenv('WINGET_FORK_REPO')
     if not fork_repo:
@@ -465,12 +460,8 @@ def main():
                 print("Failed to clone repository")
                 sys.exit(1)
             
-            # Create branch - check if should continue
-            branch_name, should_continue = create_pr_branch(repo_dir, package_id, version)
-            if not should_continue:
-                print(f"⏭️  Skipping {package_id} version {version} - branch already exists (intentionally kept to avoid duplicate PR)")
-                sys.exit(0)  # Exit successfully, not an error
-            
+            # Create branch
+            branch_name = create_pr_branch(repo_dir, package_id, version)
             print(f"Created branch: {branch_name}")
             
             # Update manifests with release notes and multi-arch support

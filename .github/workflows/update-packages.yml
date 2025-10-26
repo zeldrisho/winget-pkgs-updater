@@ -53,21 +53,14 @@ jobs:
                   package_id=$(jq -r '.packageIdentifier' version_info.json)
                   version=$(jq -r '.version' version_info.json)
                   
-                  # Check if this version already exists in microsoft/winget-pkgs
-                  manifest_path=$(jq -r '.checkver_config.manifestPath' version_info.json)
-                  echo "Checking if $manifest_path/$version exists..."
+                  echo "✨ New version found: $package_id $version"
+                  update_json=$(jq -n \
+                    --arg file "$file" \
+                    --arg pkg "$package_id" \
+                    --arg ver "$version" \
+                    '{checkver: $file, package: $pkg, version: $ver}')
+                  updates=$(echo "$updates" | jq --argjson item "$update_json" '. + [$item]')
                   
-                  if gh api "/repos/microsoft/winget-pkgs/contents/$manifest_path/$version" > /dev/null 2>&1; then
-                    echo "⏭️  Version $version already exists in microsoft/winget-pkgs, skipping"
-                  else
-                    echo "✨ New version found: $package_id $version"
-                    update_json=$(jq -n \
-                      --arg file "$file" \
-                      --arg pkg "$package_id" \
-                      --arg ver "$version" \
-                      '{checkver: $file, package: $pkg, version: $ver}')
-                    updates=$(echo "$updates" | jq --argjson item "$update_json" '. + [$item]')
-                  fi
                   rm -f version_info.json
                 fi
               fi
@@ -118,10 +111,82 @@ jobs:
             echo "has_update=false" >> $GITHUB_OUTPUT
           fi
       
-      - name: Update manifest and create PR
+      - name: Check existing PR and branch
+        id: check-pr
         if: steps.check-version.outputs.has_update == 'true'
         run: |
-          python scripts/update_manifest.py "${{ matrix.package }}.checkver.yaml" version_info.json
+          package_id="${{ matrix.package }}"
+          version="${{ matrix.version }}"
+          
+          echo "🔍 Checking for existing PRs: $package_id version $version"
+          
+          # Search for PRs with both package ID and version in title
+          search_query="${package_id} ${version} in:title"
+          prs=$(gh pr list \
+            --repo microsoft/winget-pkgs \
+            --search "$search_query" \
+            --state all \
+            --json number,title,state \
+            --limit 10)
+          
+          should_skip="false"
+          
+          if [ -n "$prs" ] && [ "$prs" != "[]" ]; then
+            # Process each PR and check state
+            pr_count=$(echo "$prs" | jq 'length')
+            echo "Found $pr_count PR(s) matching search"
+            
+            for i in $(seq 0 $((pr_count - 1))); do
+              pr=$(echo "$prs" | jq -r ".[$i]")
+              pr_number=$(echo "$pr" | jq -r '.number')
+              pr_title=$(echo "$pr" | jq -r '.title')
+              pr_state=$(echo "$pr" | jq -r '.state')
+              
+              # Check if title contains both package ID and version
+              if echo "$pr_title" | grep -qi "$package_id" && echo "$pr_title" | grep -q "$version"; then
+                case "$pr_state" in
+                  OPEN|MERGED)
+                    echo "⏭️  PR #$pr_number is $pr_state - skipping"
+                    echo "   Title: $pr_title"
+                    echo "   URL: https://github.com/microsoft/winget-pkgs/pull/$pr_number"
+                    should_skip="true"
+                    break
+                    ;;
+                  CLOSED)
+                    echo "⚪ Found CLOSED PR #$pr_number"
+                    echo "   URL: https://github.com/microsoft/winget-pkgs/pull/$pr_number"
+                    
+                    # Check if branch still exists on fork
+                    fork_repo="${{ secrets.WINGET_FORK_REPO || format('{0}/winget-pkgs', github.repository_owner) }}"
+                    branch_name="${package_id}-${version}"
+                    
+                    echo "   Checking if branch '$branch_name' exists on $fork_repo..."
+                    if gh api "/repos/$fork_repo/git/refs/heads/$branch_name" > /dev/null 2>&1; then
+                      echo "   ⏭️  Branch still exists on fork - skipping to avoid duplicate PR"
+                      should_skip="true"
+                      break
+                    else
+                      echo "   ✅ Branch deleted - will retry with new PR"
+                    fi
+                    ;;
+                esac
+              fi
+            done
+          fi
+          
+          if [ "$should_skip" = "true" ]; then
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No blocking PR found - will create new PR"
+            echo "should_skip=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
+      
+      - name: Update manifest and create PR
+        if: steps.check-version.outputs.has_update == 'true' && steps.check-pr.outputs.should_skip != 'true'
+        run: |
+          python scripts/update_manifest.py "${{ matrix.checkver }}" version_info.json
         env:
           # Required: Personal Access Token with repo + workflow scopes
           # Optional: Specify fork repository (default: {GITHUB_REPOSITORY_OWNER}/winget-pkgs)

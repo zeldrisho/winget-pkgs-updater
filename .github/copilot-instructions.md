@@ -7,19 +7,26 @@ Automated tool that monitors software packages and creates pull requests to [mic
 ## Architecture
 
 1. **Version Detection** (`scripts/check_version.py`)
-   - Executes PowerShell scripts to scrape version info
+   - **STEP 1:** Check latest version available in microsoft/winget-pkgs
+   - **STEP 2:** Execute PowerShell scripts or fetch from GitHub API to detect latest version
+   - **STEP 3:** Compare versions - skip if same (return None)
    - Supports custom metadata extraction via named regex groups
-   - Outputs version info JSON
+   - Outputs version info JSON only if new version detected
 
-2. **Manifest Update** (`scripts/update_manifest.py`)
+2. **PR Management** (GitHub Actions Workflow)
+   - **STEP 4:** Check existing PRs for package+version in microsoft/winget-pkgs
+     - OPEN or MERGED → skip (no work needed)
+     - CLOSED → check if branch exists on fork
+       - Branch exists → skip (avoid duplicate PR)
+       - Branch deleted → continue (can retry)
+   - Only proceeds to manifest update if no blocking conditions
+
+3. **Manifest Update** (`scripts/update_manifest.py`)
    - Fetches manifests from microsoft/winget-pkgs
    - Downloads installers to calculate SHA256 hashes
    - Performs global version string replacement across manifests
-
-3. **PR Management**
-   - Smart PR detection (skip if OPEN/MERGED, retry if CLOSED)
-   - Creates branch in user's fork
-   - Submits PR to upstream
+   - Creates branch and commits changes
+   - Creates PR to upstream
 
 ## Workflow for Adding New Manifests
 

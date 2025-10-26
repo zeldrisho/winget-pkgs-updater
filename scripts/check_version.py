@@ -7,6 +7,7 @@ Detects new versions by scraping download pages or APIs
 import os
 import sys
 import json
+import subprocess
 from typing import Optional, Dict
 
 # Import modules
@@ -17,14 +18,69 @@ from version.url import get_installer_url, verify_installer_exists, get_release_
 from version.web import get_latest_version_from_web
 
 
+def get_latest_version_in_winget_pkgs(manifest_path: str) -> Optional[str]:
+    """
+    Get the latest version available in microsoft/winget-pkgs.
+    Returns None if manifest doesn't exist.
+    """
+    try:
+        # Use gh api to list directory contents
+        result = subprocess.run(
+            ['gh', 'api', f'/repos/microsoft/winget-pkgs/contents/{manifest_path}'],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        
+        if result.returncode != 0:
+            # Manifest path doesn't exist
+            return None
+        
+        import json
+        contents = json.loads(result.stdout)
+        
+        # Filter for directories only (version folders)
+        versions = [item['name'] for item in contents if item['type'] == 'dir']
+        
+        if not versions:
+            return None
+        
+        # Sort versions using the same logic as update_manifest.py
+        import re
+        def version_sort_key(v):
+            parts = []
+            for x in re.split(r'[.\-]', v):
+                try:
+                    parts.append(int(x))
+                except ValueError:
+                    parts.append(0)
+            return parts
+        
+        versions.sort(key=version_sort_key)
+        return versions[-1]  # Return latest version
+        
+    except Exception as e:
+        print(f"Warning: Could not check microsoft/winget-pkgs: {e}", file=sys.stderr)
+        return None
+
+
 def check_version(checkver_path: str) -> Optional[Dict]:
     """Check for new version and return update info if found"""
     checkver_config = load_checkver_config(checkver_path)
     package_id = checkver_config['packageIdentifier']
+    manifest_path = checkver_config.get('manifestPath', '')
     
     print(f"Checking for updates: {package_id}")
     
-    # Try GitHub-based checkver first
+    # STEP 1: Check latest version on microsoft/winget-pkgs
+    print(f"🔍 Checking latest version in microsoft/winget-pkgs...")
+    winget_latest_version = get_latest_version_in_winget_pkgs(manifest_path)
+    if winget_latest_version:
+        print(f"   Latest in microsoft/winget-pkgs: {winget_latest_version}")
+    else:
+        print(f"   No existing version found in microsoft/winget-pkgs")
+    
+    # STEP 2: Try GitHub-based checkver first
     version_result = get_latest_version_github(checkver_config)
     metadata = {}
     
@@ -53,6 +109,12 @@ def check_version(checkver_path: str) -> Optional[Dict]:
         return None
     
     print(f"Latest version found: {latest_version}")
+    
+    # STEP 3: Compare versions - skip if same
+    if winget_latest_version and winget_latest_version == latest_version:
+        print(f"✅ Version {latest_version} already exists in microsoft/winget-pkgs")
+        print(f"⏭️  No update needed, skipping")
+        return None
     
     # Get installer URL(s)
     # Check if installerUrlTemplate is dict (per-architecture) or string (single)
