@@ -8,6 +8,30 @@ import subprocess
 from typing import Optional, Dict, Tuple
 
 
+def normalize_version(version: str) -> str:
+    """
+    Normalize version string by removing unnecessary leading zeros in version parts.
+    
+    Examples:
+    - "7.03.51009.0" -> "7.3.51009.0"
+    - "1.02.3.04" -> "1.2.3.4"
+    - "10.01.100.001" -> "10.1.100.1"
+    - "1.0.0.0" -> "1.0.0.0" (trailing zeros are kept)
+    
+    This handles cases where upstream uses formats like "7.03" but WinGet uses "7.3"
+    """
+    parts = version.split('.')
+    normalized_parts = []
+    
+    for part in parts:
+        # Remove leading zeros but keep at least one digit
+        # "03" -> "3", "003" -> "3", "0" -> "0", "100" -> "100"
+        normalized = str(int(part))
+        normalized_parts.append(normalized)
+    
+    return '.'.join(normalized_parts)
+
+
 def run_powershell_script(script: str) -> Optional[str]:
     """Execute PowerShell script and return output"""
     try:
@@ -76,9 +100,26 @@ def get_latest_version_script(checkver_config: Dict) -> Optional[Tuple[str, Dict
             
             print(f"Extracted version: {version}")
             
+            # Store original version format for URL templates
+            # Some URLs require the original format (e.g., "7.03" instead of "7.3")
+            original_version = version
+            
+            # Normalize version to remove leading zeros in parts
+            # e.g., "7.03.51009.0" -> "7.3.51009.0"
+            normalized_version = normalize_version(version)
+            if normalized_version != version:
+                print(f"Normalized version: {normalized_version}")
+                version = normalized_version
+            
             # Extract all named groups as metadata
             # This allows custom placeholders like {rcversion}, {build}, etc.
             metadata = match.groupdict()
+            
+            # Add original version to metadata for URL templates that need it
+            if original_version != version:
+                metadata['versionOriginal'] = original_version
+                print(f"Added versionOriginal to metadata: {original_version}")
+            
             if metadata:
                 print(f"Extracted metadata: {metadata}")
             

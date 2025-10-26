@@ -8,6 +8,30 @@ import requests
 from typing import Optional, Dict, Tuple
 
 
+def normalize_version(version: str) -> str:
+    """
+    Normalize version string by removing unnecessary leading zeros in version parts.
+    
+    Examples:
+    - "7.03.51009.0" -> "7.3.51009.0"
+    - "1.02.3.04" -> "1.2.3.4"
+    - "10.01.100.001" -> "10.1.100.1"
+    - "1.0.0.0" -> "1.0.0.0" (trailing zeros are kept)
+    
+    This handles cases where upstream uses formats like "7.03" but WinGet uses "7.3"
+    """
+    parts = version.split('.')
+    normalized_parts = []
+    
+    for part in parts:
+        # Remove leading zeros but keep at least one digit
+        # "03" -> "3", "003" -> "3", "0" -> "0", "100" -> "100"
+        normalized = str(int(part))
+        normalized_parts.append(normalized)
+    
+    return '.'.join(normalized_parts)
+
+
 def get_latest_version_github(checkver_config: Dict) -> Optional[Tuple[str, Dict]]:
     """
     Get latest version from GitHub releases.
@@ -65,6 +89,13 @@ def get_latest_version_github(checkver_config: Dict) -> Optional[Tuple[str, Dict
         
         # Extract version - remove 'v' prefix if present
         version = tag_name.lstrip('v')
+        
+        # Normalize version to remove leading zeros
+        # e.g., "7.03.51009.0" -> "7.3.51009.0"
+        original_version = version
+        version = normalize_version(version)
+        if version != original_version:
+            print(f"Normalized version: {original_version} -> {version}")
         
         # Handle version formatting based on appendDotZero setting
         if append_dot_zero:
