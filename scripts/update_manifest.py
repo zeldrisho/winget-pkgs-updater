@@ -87,14 +87,16 @@ def process_template_and_create_version(
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256, 
                         release_notes, release_notes_url, arch_hashes,
-                        installer_urls, installer_url, product_codes, metadata
+                        installer_urls, installer_url, product_codes, metadata,
+                        package_id
                     )
                 elif is_installer_file:
                     # Update installer file with multi-arch hashes and product codes
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256,
                         None, None, arch_hashes,
-                        installer_urls, installer_url, product_codes, metadata
+                        installer_urls, installer_url, product_codes, metadata,
+                        package_id
                     )
                     # Add missing architectures (e.g., arm64 if not in old version)
                     if arch_hashes and installer_urls:
@@ -106,7 +108,8 @@ def process_template_and_create_version(
                     updated_content = update_manifest_content(
                         content, version, sha256, signature_sha256,
                         None, None, arch_hashes,
-                        installer_urls, installer_url, product_codes, metadata
+                        installer_urls, installer_url, product_codes, metadata,
+                        package_id
                     )
                 
                 with open(dst_file, 'w', encoding='utf-8') as f:

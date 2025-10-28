@@ -18,7 +18,8 @@ def update_manifest_content(
     installer_urls: Optional[Dict[str, str]] = None,
     installer_url: Optional[str] = None,
     product_codes: Optional[Dict[str, str]] = None,
-    metadata: Optional[Dict[str, str]] = None
+    metadata: Optional[Dict[str, str]] = None,
+    package_id: Optional[str] = None
 ) -> str:
     """
     Update version, InstallerUrl, SHA256, and ProductCode in manifest content.
@@ -35,6 +36,9 @@ def update_manifest_content(
     Note: Fields are only updated if they already exist in the old manifest.
     """
     
+    # Capture original DisplayVersion (if present) before any replacements
+    original_display_match = re.search(r'DisplayVersion:\s*([^\n]+)', content)
+
     # Extract old version from PackageVersion field
     old_version = None
     version_match = re.search(r'PackageVersion:\s*([\d\.]+)', content)
@@ -76,6 +80,26 @@ def update_manifest_content(
             if short_count > 0:
                 content = content.replace(old_short, new_short)
                 print(f"  ✅ Also replaced {short_count} occurrences of short version {old_short} with {new_short}")
+
+    # Special handling for Microsoft.GameInput DisplayVersion mapping
+    # Existing manifests use a DisplayVersion with a different major (e.g., 10.x...),
+    # while the PackageVersion uses a different major (e.g., 3.x...). For GameInput we
+    # want to keep the DisplayVersion major from the existing manifest and combine it
+    # with the remainder (everything after the first dot) of the new version.
+    if package_id == 'Microsoft.GameInput' and original_display_match:
+        try:
+            original_display = original_display_match.group(1).strip().strip('"').strip("'")
+            # Only handle simple numeric dotted versions
+            if re.match(r'^\d+(?:\.\d+)+$', original_display) and '.' in version:
+                display_major = original_display.split('.')[0]
+                new_tail = '.'.join(version.split('.')[1:])
+                if new_tail:
+                    new_display_version = f"{display_major}.{new_tail}"
+                    # Replace DisplayVersion maintaining indentation
+                    content = re.sub(r'(\s*)DisplayVersion:.*', lambda m: ' ' * (len(m.group(0)) - len(m.group(0).lstrip())) + f'DisplayVersion: {new_display_version}', content)
+                    print(f"  ✅ Updated DisplayVersion to {new_display_version} for {package_id}")
+        except Exception:
+            pass
     
     # Update InstallerUrl - handle both single and multi-architecture
     if installer_urls:
