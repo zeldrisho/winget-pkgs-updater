@@ -26,13 +26,27 @@ def check_path_exists_on_github(path: str) -> bool:
     Returns True if the path exists, False otherwise.
     """
     try:
-        result = subprocess.run(
-            ['gh', 'api', f'/repos/microsoft/winget-pkgs/contents/{path}'],
-            capture_output=True,
-            text=True,
-            check=False
-        )
-        return result.returncode == 0
+        # Try gh CLI first, fallback to HTTP API
+        try:
+            result = subprocess.run(
+                ['gh', 'api', f'/repos/microsoft/winget-pkgs/contents/{path}'],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            
+            if result.returncode == 0:
+                return True
+        except (FileNotFoundError, OSError):
+            # gh CLI not available, will use HTTP API
+            pass
+        
+        # Fallback to HTTP API
+        import requests
+        url = f"https://api.github.com/repos/microsoft/winget-pkgs/contents/{path}"
+        response = requests.get(url, timeout=30)
+        return response.status_code == 200
+        
     except Exception:
         return False
 

@@ -25,20 +25,36 @@ def get_latest_version_in_winget_pkgs(manifest_path: str) -> Optional[str]:
     Returns None if manifest doesn't exist.
     """
     try:
-        # Use gh api to list directory contents
-        result = subprocess.run(
-            ['gh', 'api', f'/repos/microsoft/winget-pkgs/contents/{manifest_path}'],
-            capture_output=True,
-            text=True,
-            check=False
-        )
+        # Try gh CLI first, fallback to HTTP API
+        import requests
         
-        if result.returncode != 0:
-            # Manifest path doesn't exist
-            return None
+        contents = None
         
-        import json
-        contents = json.loads(result.stdout)
+        # Try gh CLI if available
+        try:
+            result = subprocess.run(
+                ['gh', 'api', f'/repos/microsoft/winget-pkgs/contents/{manifest_path}'],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            
+            if result.returncode == 0:
+                contents = json.loads(result.stdout)
+        except (FileNotFoundError, OSError):
+            # gh CLI not available, will use HTTP API
+            pass
+        
+        # Fallback to HTTP API if gh CLI didn't work
+        if contents is None:
+            url = f"https://api.github.com/repos/microsoft/winget-pkgs/contents/{manifest_path}"
+            response = requests.get(url, timeout=30)
+            
+            if response.status_code != 200:
+                # Manifest path doesn't exist
+                return None
+            
+            contents = response.json()
         
         # Filter for directories only (version folders)
         versions = [item['name'] for item in contents if item['type'] == 'dir']
