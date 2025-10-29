@@ -56,8 +56,33 @@ def get_latest_version_in_winget_pkgs(manifest_path: str) -> Optional[str]:
             
             contents = response.json()
         
-        # Filter for directories only (version folders)
-        versions = [item['name'] for item in contents if item['type'] == 'dir']
+        # Filter for directories only (potential version folders)
+        candidate_versions = [item['name'] for item in contents if item['type'] == 'dir']
+        
+        if not candidate_versions:
+            return None
+        
+        # Filter out non-version directories (package subdirectories)
+        # Version folders contain .yaml files, while subdirectories contain more folders
+        versions = []
+        for candidate in candidate_versions:
+            # Check if this directory contains manifest files
+            try:
+                subdir_url = f"https://api.github.com/repos/microsoft/winget-pkgs/contents/{manifest_path}/{candidate}"
+                subdir_response = requests.get(subdir_url, timeout=30)
+                
+                if subdir_response.status_code == 200:
+                    subdir_contents = subdir_response.json()
+                    # Version folders contain .yaml files
+                    has_yaml_files = any(item['type'] == 'file' and item['name'].endswith('.yaml') 
+                                        for item in subdir_contents)
+                    
+                    if has_yaml_files:
+                        versions.append(candidate)
+            except Exception as e:
+                # If we can't check, assume it might be a version (fail open)
+                print(f"Warning: Could not verify if '{candidate}' is a version folder: {e}", file=sys.stderr)
+                versions.append(candidate)
         
         if not versions:
             return None
