@@ -164,7 +164,11 @@ def update_manifest_content(
 
 
 def _update_multi_arch_urls(content: str, installer_urls: Dict[str, str]) -> str:
-    """Update URLs for multi-architecture packages"""
+    """
+    Update URLs for multi-architecture packages.
+    Only updates URLs where the file extension matches the template URL extension.
+    This prevents MSI templates from overwriting ZIP installer URLs.
+    """
     lines = content.split('\n')
     updated_lines = []
     current_arch = None
@@ -175,11 +179,25 @@ def _update_multi_arch_urls(content: str, installer_urls: Dict[str, str]) -> str
             match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
             current_arch = match.group(1)
         
-        # Update URL for current architecture
+        # Update URL for current architecture if file extensions match
         if 'InstallerUrl:' in line and current_arch and current_arch in installer_urls:
-            indent = len(line) - len(line.lstrip())
-            line = ' ' * indent + f'InstallerUrl: {installer_urls[current_arch]}'
-            print(f"  ✅ Updated {current_arch} InstallerUrl")
+            # Extract current URL from manifest
+            current_url = line.split('InstallerUrl:')[1].strip()
+            template_url = installer_urls[current_arch]
+            
+            # Get file extensions (normalized to lowercase)
+            current_ext = current_url.split('.')[-1].lower() if '.' in current_url else ''
+            template_ext = template_url.split('.')[-1].lower() if '.' in template_url else ''
+            
+            # Only update if extensions match
+            if current_ext == template_ext:
+                indent = len(line) - len(line.lstrip())
+                line = ' ' * indent + f'InstallerUrl: {template_url}'
+                print(f"  ✅ Updated {current_arch} {template_ext.upper()} InstallerUrl")
+            else:
+                # Extensions don't match - use global version string replacement instead
+                # This line will be handled by the global replace in update_manifest_content()
+                pass
         
         updated_lines.append(line)
     
