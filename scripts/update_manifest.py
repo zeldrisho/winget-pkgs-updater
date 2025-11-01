@@ -377,32 +377,86 @@ def main():
         description='Update WinGet manifest with new version'
     )
     parser.add_argument('checkver_config', help='Path to checkver config file')
-    parser.add_argument('version_info', help='Path to version info JSON file')
+    parser.add_argument('version_info', nargs='?', help='Path to version info JSON file OR package identifier (if version provided)')
+    parser.add_argument('version', nargs='?', help='Version number (if package identifier provided as second arg)')
     parser.add_argument('--no-pr', action='store_true',
                         help='Update manifests without creating PR (for testing)')
     parser.add_argument('--fork-path', help='Path to existing fork clone (for testing)')
     
     args = parser.parse_args()
     
-    # Load version info from check_version.py output
-    with open(args.version_info, 'r') as f:
-        version_info = json.load(f)
-    
-    package_id = version_info['packageIdentifier']
-    version = version_info['version']
-    installer_url = version_info['installerUrl']
-    checkver_config = version_info['checkver_config']
-    manifest_path = checkver_config.get('manifestPath', '')
-    
-    # Get multi-architecture URLs if available
-    installer_urls = version_info.get('installerUrls')
-    
-    # Get release notes if available
-    release_notes = version_info.get('releaseNotes')
-    release_notes_url = version_info.get('releaseNotesUrl')
-    
-    # Get metadata for custom field updates (e.g., DisplayVersion)
-    metadata = version_info.get('metadata')
+    # Determine if using direct args or JSON file
+    if args.version:
+        # Direct arguments mode: checkver_config package_id version
+        package_id = args.version_info
+        version = args.version
+        
+        # Load checkver config to get installer URLs
+        print(f"Loading checkver config from: {args.checkver_config}")
+        with open(args.checkver_config, 'r') as f:
+            checkver_config = yaml.safe_load(f)
+        
+        # Get installer URL template
+        installer_url_template = checkver_config.get('installerUrlTemplate')
+        if not installer_url_template:
+            print("Error: installerUrlTemplate not found in checkver config", file=sys.stderr)
+            sys.exit(1)
+        
+        # Generate installer URLs
+        version_short = version.rstrip('.0')
+        if isinstance(installer_url_template, dict):
+            # Multi-architecture
+            installer_urls = {}
+            for arch, url_template in installer_url_template.items():
+                installer_urls[arch] = url_template.replace('{version}', version).replace('{versionShort}', version_short)
+            installer_url = list(installer_urls.values())[0]  # Use first URL as primary
+        else:
+            # Single architecture
+            installer_url = installer_url_template.replace('{version}', version).replace('{versionShort}', version_short)
+            installer_urls = None
+        
+        # Get metadata - for GitHub releases, fetch release notes
+        release_notes = None
+        release_notes_url = None
+        metadata = None
+        
+        checkver = checkver_config.get('checkver', {})
+        if isinstance(checkver, dict) and checkver.get('type') == 'github':
+            repo = checkver.get('repo')
+            if repo:
+                print(f"Fetching GitHub release metadata for {repo}...")
+                # Fetch release info for this specific version
+                from version.github import get_github_release_info
+                # Build a temporary config that get_github_release_info can use
+                temp_config = {'checkver': {'script': f'https://api.github.com/repos/{repo}/releases'}}
+                release_info = get_github_release_info(temp_config, version)
+                if release_info:
+                    release_notes = release_info.get('releaseNotes')
+                    release_notes_url = release_info.get('releaseNotesUrl')
+        
+        manifest_path = checkver_config.get('manifestPath', '')
+        
+    else:
+        # JSON file mode (backward compatibility)
+        # Load version info from check_version.py output
+        with open(args.version_info, 'r') as f:
+            version_info = json.load(f)
+        
+        package_id = version_info['packageIdentifier']
+        version = version_info['version']
+        installer_url = version_info['installerUrl']
+        checkver_config = version_info['checkver_config']
+        manifest_path = checkver_config.get('manifestPath', '')
+        
+        # Get multi-architecture URLs if available
+        installer_urls = version_info.get('installerUrls')
+        
+        # Get release notes if available
+        release_notes = version_info.get('releaseNotes')
+        release_notes_url = version_info.get('releaseNotesUrl')
+        
+        # Get metadata for custom field updates (e.g., DisplayVersion)
+        metadata = version_info.get('metadata')
     
     print(f"Updating {package_id} to version {version}")
     

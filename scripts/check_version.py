@@ -68,11 +68,29 @@ def get_latest_version_in_winget_pkgs(manifest_path: str) -> Optional[str]:
         for candidate in candidate_versions:
             # Check if this directory contains manifest files
             try:
-                subdir_url = f"https://api.github.com/repos/microsoft/winget-pkgs/contents/{manifest_path}/{candidate}"
-                subdir_response = requests.get(subdir_url, timeout=30)
+                # Try gh CLI first for authenticated requests
+                subdir_contents = None
+                try:
+                    result = subprocess.run(
+                        ['gh', 'api', f'/repos/microsoft/winget-pkgs/contents/{manifest_path}/{candidate}'],
+                        capture_output=True,
+                        text=True,
+                        check=False
+                    )
+                    if result.returncode == 0:
+                        subdir_contents = json.loads(result.stdout)
+                except (FileNotFoundError, OSError):
+                    pass
                 
-                if subdir_response.status_code == 200:
-                    subdir_contents = subdir_response.json()
+                # Fallback to HTTP API if gh CLI didn't work
+                if subdir_contents is None:
+                    subdir_url = f"https://api.github.com/repos/microsoft/winget-pkgs/contents/{manifest_path}/{candidate}"
+                    subdir_response = requests.get(subdir_url, timeout=30)
+                    
+                    if subdir_response.status_code == 200:
+                        subdir_contents = subdir_response.json()
+                
+                if subdir_contents:
                     # Version folders contain .yaml files
                     has_yaml_files = any(item['type'] == 'file' and item['name'].endswith('.yaml') 
                                         for item in subdir_contents)
