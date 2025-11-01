@@ -186,22 +186,43 @@ def _update_multi_arch_urls(content: str, installer_urls: Dict[str, str]) -> str
 
 
 def _update_multi_arch_hashes(content: str, arch_hashes: Dict[str, str]) -> str:
-    """Update SHA256 hashes for multi-architecture packages"""
+    """
+    Update SHA256 hashes for multi-architecture packages.
+    Supports multiple installer types per architecture by matching URL patterns.
+    """
     lines = content.split('\n')
     updated_lines = []
     current_arch = None
+    current_url = None
     
     for line in lines:
         # Track current architecture
         if re.match(r'^\s*-\s*Architecture:\s*(\w+)', line):
             match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
             current_arch = match.group(1)
+            current_url = None  # Reset URL for new architecture section
         
-        # Update hash for current architecture
-        if 'InstallerSha256:' in line and current_arch and current_arch in arch_hashes:
+        # Track current installer URL to determine file type
+        if 'InstallerUrl:' in line and current_arch:
+            current_url = line.split('InstallerUrl:')[1].strip()
+        
+        # Update hash for current architecture based on file type
+        if 'InstallerSha256:' in line and current_arch and current_url:
             indent = len(line) - len(line.lstrip())
-            line = ' ' * indent + f'InstallerSha256: {arch_hashes[current_arch]}'
-            print(f"  ✅ Updated {current_arch} InstallerSha256")
+            # Determine hash key based on file extension
+            hash_key = current_arch
+            if current_url.endswith('.zip'):
+                hash_key = f"{current_arch}_zip"
+            elif current_url.endswith('.msi'):
+                hash_key = f"{current_arch}_msi"
+            
+            # Try exact match first, then fallback to arch-only
+            if hash_key in arch_hashes:
+                line = ' ' * indent + f'InstallerSha256: {arch_hashes[hash_key]}'
+                print(f"  ✅ Updated {hash_key} InstallerSha256")
+            elif current_arch in arch_hashes:
+                line = ' ' * indent + f'InstallerSha256: {arch_hashes[current_arch]}'
+                print(f"  ✅ Updated {current_arch} InstallerSha256")
         
         updated_lines.append(line)
     

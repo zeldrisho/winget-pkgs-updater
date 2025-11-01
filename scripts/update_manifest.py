@@ -150,52 +150,81 @@ def update_manifests(
             arch_hashes = {}
             product_codes = {}
             
-            # Calculate hash for each architecture
-            for arch, url in installer_urls.items():
+            # Calculate hash for each architecture and file type
+            for arch, base_url in installer_urls.items():
                 print(f"\n📥 Processing {arch} architecture...")
-                # Determine file extension
-                if url.lower().endswith('.msi'):
-                    file_ext = '.msi'
-                    is_msi = True
-                elif url.lower().endswith('.msix'):
-                    file_ext = '.msix'
-                    is_msi = False
-                elif url.lower().endswith('.zip'):
-                    file_ext = '.zip'
-                    is_msi = False
+                
+                # Determine installer types to download based on URL
+                installer_types = []
+                if base_url.lower().endswith('.msi'):
+                    installer_types.append(('msi', base_url))
+                    # Also try ZIP variant
+                    zip_url = base_url.replace('.msi', '.zip')
+                    installer_types.append(('zip', zip_url))
+                elif base_url.lower().endswith('.zip'):
+                    installer_types.append(('zip', base_url))
+                    # Also try MSI variant
+                    msi_url = base_url.replace('.zip', '.msi')
+                    installer_types.append(('msi', msi_url))
                 else:
-                    file_ext = '.exe'
-                    is_msi = False
+                    # Default to just the base URL
+                    installer_types.append(('exe', base_url))
                 
-                with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
-                    tmp_path = tmp_file.name
-                
-                try:
-                    if not download_file(url, tmp_path):
-                        print(f"❌ Failed to download {arch} installer")
+                # Download and hash each installer type
+                for file_type, url in installer_types:
+                    print(f"  Checking {file_type.upper()}: {url}")
+                    
+                    # Determine file extension
+                    if file_type == 'msi':
+                        file_ext = '.msi'
+                        is_msi = True
+                    elif file_type == 'zip':
+                        file_ext = '.zip'
+                        is_msi = False
+                    elif file_type == 'msix':
+                        file_ext = '.msix'
+                        is_msi = False
+                    else:
+                        file_ext = '.exe'
+                        is_msi = False
+                    
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
+                        tmp_path = tmp_file.name
+                    
+                    try:
+                        if not download_file(url, tmp_path):
+                            print(f"  ⏭️  {file_type.upper()} not available, skipping")
+                            if os.path.exists(tmp_path):
+                                os.unlink(tmp_path)
+                            continue
+                        
+                        # Calculate SHA256
+                        file_hash = calculate_sha256(tmp_path)
+                        
+                        # Store hash with appropriate key
+                        if file_type == 'msi':
+                            arch_hashes[f"{arch}_msi"] = file_hash
+                            arch_hashes[arch] = file_hash  # Default to MSI hash
+                            print(f"  ✅ {arch} MSI SHA256: {file_hash}")
+                        elif file_type == 'zip':
+                            arch_hashes[f"{arch}_zip"] = file_hash
+                            print(f"  ✅ {arch} ZIP SHA256: {file_hash}")
+                        else:
+                            arch_hashes[arch] = file_hash
+                            print(f"  ✅ {arch} SHA256: {file_hash}")
+                        
+                        # Extract ProductCode from MSI files
+                        if is_msi:
+                            product_code = extract_product_code_from_msi(tmp_path)
+                            if product_code:
+                                product_codes[arch] = product_code
+                    
+                    except Exception as e:
+                        print(f"  ⚠️  Error processing {arch} {file_type}: {e}")
+                    finally:
+                        # Always cleanup temp file
                         if os.path.exists(tmp_path):
                             os.unlink(tmp_path)
-                        continue
-                    
-                    # Calculate SHA256
-                    arch_hash = calculate_sha256(tmp_path)
-                    arch_hashes[arch] = arch_hash
-                    print(f"  ✅ {arch} SHA256: {arch_hash}")
-                    
-                    # Extract ProductCode from MSI files
-                    if is_msi:
-                        product_code = extract_product_code_from_msi(tmp_path)
-                        if product_code:
-                            product_codes[arch] = product_code
-                
-                except Exception as e:
-                    print(f"❌ Error processing {arch} installer: {e}")
-                    import traceback
-                    traceback.print_exc()
-                finally:
-                    # Always cleanup temp file
-                    if os.path.exists(tmp_path):
-                        os.unlink(tmp_path)
             
             if not arch_hashes:
                 print("Failed to calculate hashes for any architecture")
