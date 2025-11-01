@@ -25,6 +25,7 @@ from package.msi import extract_product_code_from_msi
 from yaml_utils import validate_yaml_content
 from manifest.updater import update_manifest_content, add_missing_architectures
 from version_utils import get_latest_version, compare_versions
+from config import load_checkver_config
 
 
 def fetch_github_file(repo: str, path: str, branch: str = "master") -> Optional[str]:
@@ -266,9 +267,66 @@ def update_manifests(
         
         # Find latest version directory
         manifest_base = os.path.join(repo_dir, manifest_path)
+        
+        # If manifest path doesn't exist locally, fetch from upstream
         if not os.path.exists(manifest_base):
-            print(f"Manifest path not found: {manifest_base}")
-            return False
+            print(f"Manifest path not found in fork: {manifest_base}")
+            print(f"Fetching from upstream microsoft/winget-pkgs...")
+            
+            # Fetch version list from upstream GitHub API
+            api_url = f"https://api.github.com/repos/microsoft/winget-pkgs/contents/{manifest_path}"
+            try:
+                response = requests.get(api_url, timeout=30)
+                response.raise_for_status()
+                items = response.json()
+                
+                # Filter to only directories (versions)
+                versions = [item['name'] for item in items if item['type'] == 'dir']
+                
+                if not versions:
+                    print(f"No versions found in upstream repository for {manifest_path}")
+                    return False
+                
+                # Sort and get latest version
+                latest_version = get_latest_version(versions)
+                print(f"Found latest version in upstream: {latest_version}")
+                
+                # Create a temporary directory to store the fetched template
+                with tempfile.TemporaryDirectory() as temp_template_dir:
+                    template_dir = os.path.join(temp_template_dir, latest_version)
+                    os.makedirs(template_dir, exist_ok=True)
+                    
+                    # Fetch all yaml files from the latest version
+                    version_api_url = f"https://api.github.com/repos/microsoft/winget-pkgs/contents/{manifest_path}/{latest_version}"
+                    response = requests.get(version_api_url, timeout=30)
+                    response.raise_for_status()
+                    files = response.json()
+                    
+                    for file_info in files:
+                        if file_info['name'].endswith('.yaml'):
+                            file_content = fetch_github_file(
+                                'microsoft/winget-pkgs',
+                                f"{manifest_path}/{latest_version}/{file_info['name']}",
+                                'master'
+                            )
+                            if file_content:
+                                with open(os.path.join(template_dir, file_info['name']), 'w', encoding='utf-8') as f:
+                                    f.write(file_content)
+                                print(f"  Downloaded: {file_info['name']}")
+                    
+                    print(f"✅ Fetched template version {latest_version} from upstream")
+                    
+                    # Process the template immediately within this context
+                    return process_template_and_create_version(
+                        repo_dir, manifest_path, package_id, version, template_dir, latest_version,
+                        sha256, signature_sha256, release_notes, release_notes_url,
+                        arch_hashes, installer_urls, installer_url, product_codes, metadata
+                    )
+            except Exception as e:
+                print(f"Error fetching from upstream: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
         
         versions = [d for d in os.listdir(manifest_base) if os.path.isdir(os.path.join(manifest_base, d))]
         if not versions:
@@ -393,8 +451,7 @@ def main():
         
         # Load checkver config to get installer URLs
         print(f"Loading checkver config from: {args.checkver_config}")
-        with open(args.checkver_config, 'r') as f:
-            checkver_config = yaml.safe_load(f)
+        checkver_config = load_checkver_config(args.checkver_config)
         
         # Get installer URL template
         installer_url_template = checkver_config.get('installerUrlTemplate')

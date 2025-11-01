@@ -5,9 +5,12 @@ Automated tool to check for new package versions and create pull requests to [mi
 ## Features
 
 - 🔄 Automatic version detection using PowerShell scripts or GitHub API
-- 📦 Full manifest updates (Version, URL, SHA256, SignatureSha256, ReleaseDate)
+- 🤖 Auto-derived package identifiers and manifest paths from filenames
+- 📦 Smart manifest updates (preserves existing fields, updates only what's needed)
+- 🔐 Automatic hash calculation (InstallerSha256, SignatureSha256, ProductCode)
 - 🔍 Smart PR management (skip OPEN/MERGED, retry CLOSED)
-- 🎯 MSIX support with automatic signature calculation
+- 📝 GitHub metadata auto-fetch (ReleaseNotes, ReleaseNotesUrl)
+- 🎯 Multi-architecture support with MSIX/MSI handling
 - 🤖 GitHub Actions integration (scheduled or manual)
 
 ## Quick Setup
@@ -46,13 +49,31 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guide on adding new packages
 
 ## How It Works
 
-1. **Check Version** - Runs PowerShell script to detect latest version
-2. **Check Existing PR** - Searches for OPEN/MERGED PRs (skip if found)
-3. **Download Installer** - Downloads installer file (if needed)
-4. **Calculate Hashes** - InstallerSha256 + SignatureSha256 (for MSIX)
-5. **Clone Fork** - Clones your winget-pkgs fork
-6. **Update Manifests** - Replaces all version occurrences + updates hashes
-7. **Create PR** - Creates PR to microsoft/winget-pkgs
+### 3-Stage Pipeline
+
+#### Stage 1: Version Detection
+1. **Auto-derive identifiers** - Extract packageIdentifier from filename
+2. **Query winget-pkgs** - Find latest published version via GitHub API
+3. **Run version check** - Execute PowerShell script or GitHub API query
+4. **Compare versions** - Exit with new version info if update available
+
+#### Stage 2: PR Gate Check
+5. **Search existing PRs** - Query microsoft/winget-pkgs for matching PRs
+   - **OPEN/MERGED** → Skip (already submitted/accepted)
+   - **CLOSED** → Check fork branch status
+     - Branch exists → Skip (avoid duplicate)
+     - Branch deleted → Continue (allow retry)
+
+#### Stage 3: Manifest Update
+6. **Clone fork** - Clone your winget-pkgs fork
+7. **Fetch manifests** - Copy latest version folder from upstream
+8. **Download installers** - Download files for hash calculation
+9. **Calculate hashes** - InstallerSha256 + SignatureSha256 (MSIX) + ProductCode (MSI)
+10. **Update manifests** - Smart field updates:
+    - **Always updated**: PackageVersion, InstallerSha256, InstallerUrl
+    - **Conditionally updated**: ProductCode, ReleaseDate, ReleaseNotes (if exist in old manifest)
+    - **Preserved**: All other fields (Publisher, License, Tags, etc.)
+11. **Create PR** - Push to fork and open PR to microsoft/winget-pkgs
 
 ## PR Management
 

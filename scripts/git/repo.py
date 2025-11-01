@@ -123,6 +123,19 @@ def commit_and_push(repo_dir: str, package_id: str, version: str, branch_name: s
             check=True
         )
         
+        # Check if there are changes to commit
+        status_result = subprocess.run(
+            ['git', 'status', '--porcelain'],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        if not status_result.stdout.strip():
+            print("⚠️  No changes to commit")
+            return True  # Not an error, just nothing to do
+        
         # Commit
         commit_msg = f"New version: {package_id} version {version}"
         subprocess.run(

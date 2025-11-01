@@ -2,31 +2,103 @@
 
 ## Project Overview
 
-Automated tool that monitors software packages and creates pull requests to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) when new versions are detected. Runs on GitHub Actions, checking versions via PowerShell scripts.
+Automated tool that monitors software packages and creates pull requests to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) when new versions are detected. Runs on GitHub Actions, using PowerShell scripts or GitHub API for version detection.
 
-## Architecture
+**Key Technologies:** Python 3.11+, PowerShell 7.5+, GitHub CLI (`gh`), PyYAML, `msitools`, `packaging`
 
-1. **Version Detection** (`scripts/check_version.py`)
-   - **STEP 1:** Check latest version available in microsoft/winget-pkgs
-   - **STEP 2:** Execute PowerShell scripts or fetch from GitHub API to detect latest version
-   - **STEP 3:** Compare versions - skip if same (return None)
-   - Supports custom metadata extraction via named regex groups
-   - Outputs version info JSON only if new version detected
+## Architecture Overview
 
-2. **PR Management** (GitHub Actions Workflow)
-   - **STEP 4:** Check existing PRs for package+version in microsoft/winget-pkgs
-     - OPEN or MERGED → skip (no work needed)
-     - CLOSED → check if branch exists on fork
-       - Branch exists → skip (avoid duplicate PR)
-       - Branch deleted → continue (can retry)
-   - Only proceeds to manifest update if no blocking conditions
+This is a **3-stage pipeline** that runs on GitHub Actions:
 
-3. **Manifest Update** (`scripts/update_manifest.py`)
-   - Fetches manifests from microsoft/winget-pkgs
-   - Downloads installers to calculate SHA256 hashes
-   - Performs global version string replacement across manifests
-   - Creates branch and commits changes
-   - Creates PR to upstream
+### Stage 1: Version Detection (`scripts/check_version.py`)
+- **STEP 1:** Query microsoft/winget-pkgs API to find latest published version
+- **STEP 2:** Execute version check (PowerShell script or GitHub API)
+- **STEP 3:** Compare versions - exit 0 if new version found, exit 1 if same
+- **Output:** `version_info.json` containing `{packageIdentifier, version, manifestPath, metadata}`
+- **Supports:** Custom metadata extraction via Python named groups `(?P<name>...)`
+
+### Stage 2: PR Gate Check (GitHub Actions Workflow)
+- **STEP 4:** Search microsoft/winget-pkgs for existing PRs matching package+version
+  - **OPEN or MERGED** → Skip (already submitted/accepted)
+  - **CLOSED** → Check if branch exists on fork
+    - Branch exists → Skip (avoid duplicate PR)
+    - Branch deleted → Continue (can retry)
+- **Purpose:** Prevents duplicate PRs and respects upstream decisions
+- **Only proceeds to Stage 3** if no blocking conditions found
+
+### Stage 3: Manifest Update (`scripts/update_manifest.py`)
+- **STEP 5:** Clone fork of microsoft/winget-pkgs
+- **STEP 6:** Fetch existing manifests for latest version
+- **STEP 7:** Download installers and calculate SHA256 hashes (supports multi-arch)
+- **STEP 8:** Extract ProductCode from MSI files using `msitools`
+- **STEP 9:** Copy manifest folder and apply updates (version replacement + field updates)
+- **STEP 10:** Create branch, commit, push to fork, open PR
+- **Strategy:** Copy entire manifest folder → selective field updates → global version string replacement
+
+## Code Organization
+
+### Module Structure (`scripts/`)
+
+**Core Scripts:**
+- `check_version.py` - Entry point for version detection (Stage 1)
+- `update_manifest.py` - Entry point for manifest updates (Stage 3)
+- `config.py` - Checkver YAML loader with auto-derivation logic
+- `version_utils.py` - Version comparison using `packaging.version`
+- `yaml_utils.py` - YAML validation helpers
+
+**Version Detection (`scripts/version/`):**
+- `github.py` - GitHub API integration (releases, tags, metadata)
+- `script.py` - PowerShell script execution (30s timeout)
+- `url.py` - URL template processing with {version} placeholder replacement
+- `web.py` - Fallback web scraping (rarely used)
+
+**Package Handling (`scripts/package/`):**
+- `hasher.py` - File download and SHA256 calculation
+- `msi.py` - ProductCode extraction using `msitools` (msiinfo command)
+- `msix.py` - SignatureSha256 calculation for MSIX packages
+
+**Git Operations (`scripts/git/`):**
+- `repo.py` - Fork cloning, branch creation, commit/push operations
+- `pr.py` - PR existence checking and creation via `gh` CLI
+
+**Manifest Updates (`scripts/manifest/`):**
+- `updater.py` - Smart field update logic (preserves existing fields only)
+  - Global version string replacement
+  - Multi-architecture hash updates
+  - Conditional field updates (ReleaseNotes, ProductCode, etc.)
+  - Special handling for edge cases (Microsoft.GameInput DisplayVersion)
+
+### Key Design Patterns
+
+**Auto-Derivation Pattern** (`config.py`):
+```python
+# Filename: Microsoft.PowerShell.checkver.yaml
+packageIdentifier = derive_package_identifier(checkver_path)  # "Microsoft.PowerShell"
+manifestPath = derive_manifest_path(packageIdentifier)  # "manifests/m/Microsoft/PowerShell"
+```
+Detects pattern via GitHub API queries (standard, deep nested, version subdirectory).
+
+**Version Sorting Pattern** (`version_utils.py`):
+```python
+# Uses packaging.version.parse() for semantic versioning
+# Handles 1.2.3, 1.2.3-beta, 1.2.3.0 correctly
+latest = get_latest_version(['1.2.3', '1.2.4-beta', '1.2.4'])  # Returns "1.2.4"
+```
+
+**Conditional Field Update Pattern** (`manifest/updater.py`):
+```python
+# Only update fields that exist in old manifest
+if 'ReleaseDate' in content:
+    content = update_release_date(content)  # Set to current date
+if 'ProductCode' in content and product_codes:
+    content = update_product_codes(content, product_codes)
+```
+
+**Global Version Replacement Strategy**:
+1. Extract old version from `PackageVersion:` field
+2. Replace ALL occurrences (handles RelativeFilePath, DisplayVersion, URLs)
+3. Also replace short versions (7.5.4 when full is 7.5.4.0)
+4. Also replace major.minor versions (8.4 → 9.5 for DefaultInstallLocation)
 
 ## Workflow for Adding New Manifests
 
@@ -249,10 +321,82 @@ The system queries GitHub API to verify which pattern exists before selecting th
 - **Clean Checkver Files:** Do NOT add comments to checkver YAML files - keep them minimal and clean
 - **Installer URL Template:** MUST be specified - handles version placeholders and multi-architecture support
 
-## Testing
+## Developer Workflows
+
+### Testing Version Detection Locally
+```bash
+# Test single package
+python3 scripts/check_version.py manifests/Microsoft.PowerShell.checkver.yaml
+
+# Test with output file
+python3 scripts/check_version.py manifests/Package.checkver.yaml version_info.json
+
+# View JSON output
+cat version_info.json | jq .
+```
+
+**Exit codes:**
+- `0` = New version detected (version_info.json created)
+- `1` = No update needed or check failed
+
+### Adding New Package Checkver
+
+**Step 1:** Inspect existing manifest structure
+```bash
+# View latest manifest files for a package
+curl -s "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/r/RustDesk/RustDesk" | jq -r '.[].name'
+
+# Fetch specific version manifest
+curl -s "https://raw.githubusercontent.com/microsoft/winget-pkgs/master/manifests/r/RustDesk/RustDesk/1.3.2/RustDesk.RustDesk.installer.yaml"
+```
+
+**Step 2:** Identify unusual fields that may need new features:
+- Non-standard installer types (MSI, MSIX, portable, etc.)
+- Complex ProductCode patterns
+- Custom installer switches
+- Nested architectures
+- Special dependencies
+
+**Step 3:** Create minimal checkver file
+```yaml
+# manifests/Publisher.Package.checkver.yaml
+checkver:
+  type: github
+  repo: owner/repo
+
+installerUrlTemplate: "https://github.com/owner/repo/releases/download/v{version}/app.exe"
+```
+
+**Step 4:** Test locally before committing
+
+### Manual Testing Full Pipeline
 
 ```bash
-python3 scripts/check_version.py manifests/Package.checkver.yaml
+# Set required environment variables
+export WINGET_PKGS_TOKEN="your_github_token"
+export WINGET_FORK_REPO="your_username/winget-pkgs"
+
+# Run full update for a package
+python3 scripts/update_manifest.py manifests/Package.checkver.yaml
+```
+
+### Common Debugging Commands
+
+```bash
+# Check PowerShell version (must be 7.5+)
+pwsh --version
+
+# Test PowerShell script manually
+pwsh -Command "Write-Output 'Test'"
+
+# Verify msitools installed (for ProductCode extraction)
+which msiinfo
+
+# Check GitHub CLI authentication
+gh auth status
+
+# View GitHub Actions workflow syntax
+gh workflow view "Update WinGet Packages"
 ```
 
 ## Environment
