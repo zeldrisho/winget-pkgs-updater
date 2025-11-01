@@ -48,6 +48,10 @@ jobs:
           while IFS= read -r file; do
             if [ -n "$file" ]; then
               echo "Checking $file..."
+              # Clean up previous version_info.json to avoid stale data
+              rm -f version_info.json
+              
+              # Script exits with code 0 if update found, 1 if no update
               if python scripts/check_version.py "$file" "version_info.json"; then
                 if [ -f "version_info.json" ]; then
                   package_id=$(jq -r '.packageIdentifier' version_info.json)
@@ -62,7 +66,11 @@ jobs:
                   updates=$(echo "$updates" | jq --argjson item "$update_json" '. + [$item]')
                   
                   rm -f version_info.json
+                else
+                  echo "⚠️ Script succeeded but no version_info.json created"
                 fi
+              else
+                echo "ℹ️ No update needed or check failed"
               fi
             fi
           done <<< "${{ steps.find-checkver.outputs.files }}"
@@ -104,11 +112,22 @@ jobs:
       - name: Check version and generate update info
         id: check-version
         run: |
-          python scripts/check_version.py "${{ matrix.checkver }}" "version_info.json"
-          if [ -f "version_info.json" ]; then
-            echo "has_update=true" >> $GITHUB_OUTPUT
+          # Clean up any stale version_info.json
+          rm -f version_info.json
+          
+          # Re-check version (in case it was updated between jobs)
+          # Script exits with 1 if no update, but we don't want to fail the job
+          if python scripts/check_version.py "${{ matrix.checkver }}" "version_info.json"; then
+            if [ -f "version_info.json" ]; then
+              echo "has_update=true" >> $GITHUB_OUTPUT
+              echo "✅ Update confirmed"
+            else
+              echo "has_update=false" >> $GITHUB_OUTPUT
+              echo "⚠️ Script succeeded but no version_info.json created"
+            fi
           else
             echo "has_update=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No update needed (version already exists or check failed)"
           fi
       
       - name: Check existing PR and branch

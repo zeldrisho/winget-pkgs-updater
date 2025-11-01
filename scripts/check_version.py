@@ -194,9 +194,13 @@ def check_version(checkver_path: str) -> Optional[Dict]:
     if installer_urls:
         result['installerUrls'] = installer_urls
     
-    # Add metadata for custom placeholders if available
+    # Add metadata for custom placeholders ONLY (exclude release info fields)
+    # Release info is already in releaseNotes/releaseNotesUrl
     if metadata:
-        result['metadata'] = metadata
+        filtered_metadata = {k: v for k, v in metadata.items() 
+                           if k not in ['releasenotes', 'releasenotesurl']}
+        if filtered_metadata:
+            result['metadata'] = filtered_metadata
     
     # Add release info if available
     if release_info:
@@ -243,7 +247,7 @@ def main():
         if os.getenv('GITHUB_OUTPUT'):
             with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
                 f.write(f"has_update=false\n")
-        sys.exit(0)
+        sys.exit(1)  # Exit with error code to indicate no update
 
 
 if __name__ == '__main__':

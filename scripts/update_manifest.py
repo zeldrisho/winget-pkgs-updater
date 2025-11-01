@@ -43,6 +43,7 @@ def fetch_github_file(repo: str, path: str, branch: str = "master") -> Optional[
 def process_template_and_create_version(
     repo_dir: str,
     manifest_path: str,
+    package_id: str,
     version: str,
     latest_dir: str,
     latest_version: str,
@@ -330,7 +331,7 @@ def update_manifests(
                             # Process the template immediately within this context
                             # so latest_dir remains valid
                             return process_template_and_create_version(
-                                repo_dir, manifest_path, version, latest_dir, latest_version,
+                                repo_dir, manifest_path, package_id, version, latest_dir, latest_version,
                                 sha256, signature_sha256, release_notes, release_notes_url,
                                 arch_hashes, installer_urls, installer_url, product_codes, metadata
                             )
@@ -358,7 +359,7 @@ def update_manifests(
             
             # Process template from repo directory (normal case)
             return process_template_and_create_version(
-                repo_dir, manifest_path, version, latest_dir, latest_version,
+                repo_dir, manifest_path, package_id, version, latest_dir, latest_version,
                 sha256, signature_sha256, release_notes, release_notes_url,
                 arch_hashes, installer_urls, installer_url, product_codes, metadata
             )

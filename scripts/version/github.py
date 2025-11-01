@@ -107,11 +107,11 @@ def get_latest_version_github(checkver_config: Dict) -> Optional[Tuple[str, Dict
         
         print(f"Latest version found: {version}")
         
-        # Build metadata dict
+        # Build metadata dict for release info
+        # This will be converted to proper releaseNotes/releaseNotesUrl by get_release_info_from_config()
         metadata = {}
         
         # ALWAYS fetch release notes and URL from GitHub API
-        # (updateMetadata field is deprecated - now automatic)
         release_notes = release_data.get('body', '').strip()
         if release_notes:
             metadata['releasenotes'] = release_notes
