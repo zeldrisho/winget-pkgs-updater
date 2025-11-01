@@ -1,0 +1,8 @@
+checkver:
+  type: github
+  repo: starship/starship
+
+installerUrlTemplate:
+  x64: "https://github.com/starship/starship/releases/download/v{version}/starship-x86_64-pc-windows-msvc.msi"
+  x86: "https://github.com/starship/starship/releases/download/v{version}/starship-i686-pc-windows-msvc.msi"
+  arm64: "https://github.com/starship/starship/releases/download/v{version}/starship-aarch64-pc-windows-msvc.msi"

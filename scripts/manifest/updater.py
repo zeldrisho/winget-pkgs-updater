@@ -140,16 +140,16 @@ def update_manifest_content(
     
     # Update ReleaseDate to today (ISO 8601 format: YYYY-MM-DD)
     today = datetime.now().strftime('%Y-%m-%d')
-    if re.search(r'ReleaseDate:\s*[\d-]+', content):
-        content = re.sub(r'ReleaseDate:\s*[\d-]+', f'ReleaseDate: {today}', content)
+    if re.search(r'^[^#]*ReleaseDate:\s*[\d-]+', content, re.MULTILINE):
+        content = re.sub(r'^(\s*)ReleaseDate:\s*[\d-]+', fr'\1ReleaseDate: {today}', content, flags=re.MULTILINE)
         print(f"  ✅ Updated ReleaseDate to {today}")
     
-    # Update ReleaseNotes if provided
-    if release_notes and re.search(r'ReleaseNotes:', content):
+    # Update ReleaseNotes if provided (only if not commented out)
+    if release_notes and re.search(r'^[^#]*ReleaseNotes:', content, re.MULTILINE):
         content = _update_release_notes(content, release_notes)
     
-    # Update ReleaseNotesUrl if provided
-    if release_notes_url and re.search(r'ReleaseNotesUrl:', content):
+    # Update ReleaseNotesUrl if provided (only if not commented out)
+    if release_notes_url and re.search(r'^[^#]*ReleaseNotesUrl:', content, re.MULTILINE):
         content = _update_release_notes_url(content, release_notes_url)
     
     # Update DisplayVersion with metadata if provided (e.g., "17.14.18 (October 2025)")
@@ -255,29 +255,39 @@ def _update_product_codes(content: str, product_codes: Dict[str, str]) -> str:
 
 
 def _update_release_notes(content: str, release_notes: str) -> str:
-    """Update ReleaseNotes field in manifest"""
+    """Update ReleaseNotes field in manifest (only if not commented out)"""
     yaml_notes = release_notes.replace('\r\n', '\n').replace('\r', '\n')
     
-    if re.search(r'ReleaseNotes:\s*\|-', content):
+    if re.search(r'^[^#]*ReleaseNotes:\s*\|-', content, re.MULTILINE):
         # Block scalar format
         content = re.sub(
-            r'ReleaseNotes:\s*\|-\n(?:.*\n)*?(?=\w+:)',
-            f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}\n',
+            r'^(\s*)ReleaseNotes:\s*\|-\n(?:.*\n)*?(?=\w+:)',
+            fr'\1ReleaseNotes: |-\n\1  {yaml_notes.replace(chr(10), chr(10) + "  ")}\n',
             content,
             flags=re.MULTILINE
         )
         print(f"  ✅ Updated ReleaseNotes (block scalar)")
     else:
-        # Single line format
-        content = re.sub(r'(ReleaseNotes:).*', f'ReleaseNotes: |-\n  {yaml_notes.replace(chr(10), chr(10) + "  ")}', content)
+        # Single line format - only update if not commented
+        content = re.sub(
+            r'^(\s*)(ReleaseNotes:).*',
+            fr'\1\2 |-\n\1  {yaml_notes.replace(chr(10), chr(10) + "  ")}',
+            content,
+            flags=re.MULTILINE
+        )
         print(f"  ✅ Updated ReleaseNotes")
     
     return content
 
 
 def _update_release_notes_url(content: str, release_notes_url: str) -> str:
-    """Update ReleaseNotesUrl field in manifest"""
-    content = re.sub(r'ReleaseNotesUrl:.*', f'ReleaseNotesUrl: {release_notes_url}', content)
+    """Update ReleaseNotesUrl field in manifest (only if not commented out)"""
+    content = re.sub(
+        r'^(\s*)ReleaseNotesUrl:.*',
+        fr'\1ReleaseNotesUrl: {release_notes_url}',
+        content,
+        flags=re.MULTILINE
+    )
     print(f"  ✅ Updated ReleaseNotesUrl")
     return content
 
