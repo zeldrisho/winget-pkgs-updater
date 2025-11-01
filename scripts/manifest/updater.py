@@ -140,17 +140,18 @@ def update_manifest_content(
     
     # Update ReleaseDate to today (ISO 8601 format: YYYY-MM-DD)
     today = datetime.now().strftime('%Y-%m-%d')
-    if re.search(r'^[^#]*ReleaseDate:\s*[\d-]+', content, re.MULTILINE):
+    if re.search(r'^(\s*)ReleaseDate:\s*[\d-]+', content, re.MULTILINE):
         content = re.sub(r'^(\s*)ReleaseDate:\s*[\d-]+', fr'\1ReleaseDate: {today}', content, flags=re.MULTILINE)
         print(f"  ✅ Updated ReleaseDate to {today}")
     
     # Update ReleaseNotes if provided (only if not commented out)
-    if release_notes and re.search(r'^[^#]*ReleaseNotes:', content, re.MULTILINE):
+    if release_notes and re.search(r'^(\s*)ReleaseNotes:', content, re.MULTILINE):
         content = _update_release_notes(content, release_notes)
     
     # Update ReleaseNotesUrl if provided (only if not commented out)
-    if release_notes_url and re.search(r'^[^#]*ReleaseNotesUrl:', content, re.MULTILINE):
+    if release_notes_url and re.search(r'^(\s*)ReleaseNotesUrl:', content, re.MULTILINE):
         content = _update_release_notes_url(content, release_notes_url)
+
     
     # Update DisplayVersion with metadata if provided (e.g., "17.14.18 (October 2025)")
     if metadata and 'displayDate' in metadata:
@@ -279,7 +280,7 @@ def _update_release_notes(content: str, release_notes: str) -> str:
     """Update ReleaseNotes field in manifest (only if not commented out)"""
     yaml_notes = release_notes.replace('\r\n', '\n').replace('\r', '\n')
     
-    if re.search(r'^[^#]*ReleaseNotes:\s*\|-', content, re.MULTILINE):
+    if re.search(r'^(\s*)ReleaseNotes:\s*\|-', content, re.MULTILINE):
         # Block scalar format
         content = re.sub(
             r'^(\s*)ReleaseNotes:\s*\|-\n(?:.*\n)*?(?=\w+:)',
@@ -313,6 +314,7 @@ def _update_release_notes_url(content: str, release_notes_url: str) -> str:
     return content
 
 
+
 def add_missing_architectures(content: str, arch_hashes: Dict[str, str], installer_urls: Dict[str, str]) -> str:
     """
     Add new architectures to installer manifest if they don't exist.
@@ -325,13 +327,20 @@ def add_missing_architectures(content: str, arch_hashes: Dict[str, str], install
             match = re.match(r'^\s*-\s*Architecture:\s*(\w+)', line)
             existing_archs.add(match.group(1))
     
-    # Find missing architectures
-    new_archs = set(arch_hashes.keys()) - existing_archs
+    # Extract base architectures from arch_hashes (remove _msi, _zip suffixes)
+    base_archs = set()
+    for key in arch_hashes.keys():
+        # Extract base architecture (e.g., arm64 from arm64_msi or arm64_zip)
+        base_arch = key.split('_')[0]
+        base_archs.add(base_arch)
+    
+    # Find missing architectures (only consider base architectures)
+    new_archs = base_archs - existing_archs
     
     if not new_archs:
         return content  # No new architectures to add
     
-    print(f"  ➕ Adding new architectures: {', '.join(new_archs)}")
+    print(f"  ➕ Adding new architectures: {', '.join(sorted(new_archs))}")
     
     lines = content.split('\n')
     
@@ -386,9 +395,11 @@ def add_missing_architectures(content: str, arch_hashes: Dict[str, str], install
         if nested_installer_lines:
             arch_section.extend(nested_installer_lines)
         
-        # Add URL and hash
+        # Add URL and hash - use base arch for installer_urls lookup
         arch_section.append(f'  InstallerUrl: {installer_urls[arch]}')
-        arch_section.append(f'  InstallerSha256: {arch_hashes[arch]}')
+        # Use base arch hash (prefer plain arch key, fallback to arch_msi)
+        hash_value = arch_hashes.get(arch) or arch_hashes.get(f'{arch}_msi') or arch_hashes.get(f'{arch}_zip')
+        arch_section.append(f'  InstallerSha256: {hash_value}')
         
         new_sections.extend(arch_section)
         print(f"  ✅ Added {arch} architecture")
