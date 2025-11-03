@@ -1,0 +1,5 @@
+checkver:
+  type: github
+  repo: dyad-sh/dyad
+
+installerUrlTemplate: "https://github.com/dyad-sh/dyad/releases/download/v{version}/dyad-{version}.Setup.exe"
