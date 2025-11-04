@@ -1,0 +1,93 @@
+name: Cleanup Merged PR Branches
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup-merged-branches:
+    name: Cleanup merged PR branches
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Delete merged PR branches from fork
+        run: |
+          fork_repo="${{ secrets.WINGET_FORK_REPO || format('{0}/winget-pkgs', github.repository_owner) }}"
+          
+          echo "🔍 Checking for merged PRs in microsoft/winget-pkgs..."
+          echo "Fork repository: $fork_repo"
+          
+          # Get all merged PRs created by the fork owner
+          merged_prs=$(gh pr list \
+            --repo microsoft/winget-pkgs \
+            --author "${{ github.repository_owner }}" \
+            --state merged \
+            --limit 100 \
+            --json number,title,headRefName,headRepository)
+          
+          if [ -z "$merged_prs" ] || [ "$merged_prs" = "[]" ]; then
+            echo "✅ No merged PRs found"
+            exit 0
+          fi
+          
+          pr_count=$(echo "$merged_prs" | jq 'length')
+          echo "Found $pr_count merged PR(s)"
+          
+          deleted_count=0
+          skipped_count=0
+          
+          for i in $(seq 0 $((pr_count - 1))); do
+            pr=$(echo "$merged_prs" | jq -r ".[$i]")
+            pr_number=$(echo "$pr" | jq -r '.number')
+            pr_title=$(echo "$pr" | jq -r '.title')
+            branch_name=$(echo "$pr" | jq -r '.headRefName')
+            head_repo=$(echo "$pr" | jq -r '.headRepository.nameWithOwner // empty')
+            
+            # Only process branches from our fork
+            if [ "$head_repo" != "$fork_repo" ]; then
+              echo "⏭️  PR #$pr_number - branch from different repo ($head_repo) - skipping"
+              ((skipped_count++))
+              continue
+            fi
+            
+            echo ""
+            echo "🔍 Processing PR #$pr_number: $pr_title"
+            echo "   Branch: $branch_name"
+            
+            # Check if branch exists on fork
+            if gh api "/repos/$fork_repo/git/refs/heads/$branch_name" > /dev/null 2>&1; then
+              echo "   🗑️  Deleting branch from fork..."
+              if gh api -X DELETE "/repos/$fork_repo/git/refs/heads/$branch_name" > /dev/null 2>&1; then
+                echo "   ✅ Branch deleted successfully"
+                ((deleted_count++))
+              else
+                echo "   ⚠️  Failed to delete branch"
+              fi
+            else
+              echo "   ℹ️  Branch already deleted"
+              ((skipped_count++))
+            fi
+          done
+          
+          echo ""
+          echo "📊 Summary:"
+          echo "   Total merged PRs: $pr_count"
+          echo "   Branches deleted: $deleted_count"
+          echo "   Skipped: $skipped_count"
+          
+          # Add to GitHub step summary
+          echo "## 🧹 Branch Cleanup Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total merged PRs:** $pr_count" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branches deleted:** $deleted_count" >> $GITHUB_STEP_SUMMARY
+          echo "- **Skipped:** $skipped_count" >> $GITHUB_STEP_SUMMARY
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
