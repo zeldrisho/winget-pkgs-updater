@@ -43,6 +43,16 @@ jobs:
           pr_count=$(echo "$merged_prs" | jq 'length')
           echo "Found $pr_count merged PR(s)"
           
+          # Clone the fork to delete branches using git
+          echo ""
+          echo "📥 Cloning fork repository..."
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${fork_repo}.git" fork_repo
+          cd fork_repo
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
           deleted_count=0
           skipped_count=0
           error_count=0
@@ -73,10 +83,10 @@ jobs:
             echo "   Branch: $branch_name"
             echo "   Repository: $head_repo"
             
-            # Check if branch exists on fork
-            if gh api "/repos/$fork_repo/git/refs/heads/$branch_name" > /dev/null 2>&1; then
+            # Check if branch exists on remote
+            if git ls-remote --heads origin "$branch_name" | grep -q "$branch_name"; then
               echo "   🗑️  Deleting branch from fork..."
-              if gh api -X DELETE "/repos/$fork_repo/git/refs/heads/$branch_name" > /dev/null 2>&1; then
+              if git push origin --delete "$branch_name" 2>&1; then
                 echo "   ✅ Branch deleted successfully"
                 deleted_count=$((deleted_count + 1))
               else
