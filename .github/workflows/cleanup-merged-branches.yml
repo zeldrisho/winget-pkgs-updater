@@ -64,24 +64,22 @@ jobs:
             branch_name=$(echo "$pr" | jq -r '.headRefName')
             head_repo=$(echo "$pr" | jq -r '.headRepository.nameWithOwner // ""')
             
-            # Skip if head repository info is missing (branch already deleted from fork)
-            if [ -z "$head_repo" ] || [ "$head_repo" = "null" ]; then
-              echo "⏭️  PR #$pr_number - head repository info missing (branch likely deleted) - skipping"
-              skipped_count=$((skipped_count + 1))
-              continue
-            fi
-            
-            # Only process branches from our fork
-            if [ "$head_repo" != "$fork_repo" ]; then
-              echo "⏭️  PR #$pr_number - branch from different repo ($head_repo) - skipping"
-              skipped_count=$((skipped_count + 1))
-              continue
-            fi
-            
             echo ""
             echo "🔍 Processing PR #$pr_number: $pr_title"
             echo "   Branch: $branch_name"
-            echo "   Repository: $head_repo"
+            
+            # If head repository info is available, check if it matches our fork
+            if [ -n "$head_repo" ] && [ "$head_repo" != "null" ]; then
+              echo "   Repository: $head_repo"
+              # Only process branches from our fork
+              if [ "$head_repo" != "$fork_repo" ]; then
+                echo "   ⏭️  Branch from different repo - skipping"
+                skipped_count=$((skipped_count + 1))
+                continue
+              fi
+            else
+              echo "   Repository: (not available - will check if branch exists)"
+            fi
             
             # Check if branch exists on remote
             if git ls-remote --heads origin "$branch_name" | grep -q "$branch_name"; then
