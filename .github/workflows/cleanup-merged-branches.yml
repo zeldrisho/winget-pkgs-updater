@@ -43,13 +43,21 @@ jobs:
           
           deleted_count=0
           skipped_count=0
+          error_count=0
           
           for i in $(seq 0 $((pr_count - 1))); do
             pr=$(echo "$merged_prs" | jq -r ".[$i]")
             pr_number=$(echo "$pr" | jq -r '.number')
             pr_title=$(echo "$pr" | jq -r '.title')
             branch_name=$(echo "$pr" | jq -r '.headRefName')
-            head_repo=$(echo "$pr" | jq -r '.headRepository.nameWithOwner // empty')
+            head_repo=$(echo "$pr" | jq -r '.headRepository.nameWithOwner // ""')
+            
+            # Skip if head repository info is missing (branch already deleted from fork)
+            if [ -z "$head_repo" ]; then
+              echo "⏭️  PR #$pr_number - head repository info missing (branch likely deleted) - skipping"
+              ((skipped_count++))
+              continue
+            fi
             
             # Only process branches from our fork
             if [ "$head_repo" != "$fork_repo" ]; then
@@ -61,6 +69,7 @@ jobs:
             echo ""
             echo "🔍 Processing PR #$pr_number: $pr_title"
             echo "   Branch: $branch_name"
+            echo "   Repository: $head_repo"
             
             # Check if branch exists on fork
             if gh api "/repos/$fork_repo/git/refs/heads/$branch_name" > /dev/null 2>&1; then
@@ -70,6 +79,7 @@ jobs:
                 ((deleted_count++))
               else
                 echo "   ⚠️  Failed to delete branch"
+                ((error_count++))
               fi
             else
               echo "   ℹ️  Branch already deleted"
@@ -81,13 +91,15 @@ jobs:
           echo "📊 Summary:"
           echo "   Total merged PRs: $pr_count"
           echo "   Branches deleted: $deleted_count"
-          echo "   Skipped: $skipped_count"
+          echo "   Already deleted/skipped: $skipped_count"
+          echo "   Errors: $error_count"
           
           # Add to GitHub step summary
           echo "## 🧹 Branch Cleanup Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Total merged PRs:** $pr_count" >> $GITHUB_STEP_SUMMARY
           echo "- **Branches deleted:** $deleted_count" >> $GITHUB_STEP_SUMMARY
-          echo "- **Skipped:** $skipped_count" >> $GITHUB_STEP_SUMMARY
+          echo "- **Already deleted/skipped:** $skipped_count" >> $GITHUB_STEP_SUMMARY
+          echo "- **Errors:** $error_count" >> $GITHUB_STEP_SUMMARY
         env:
           GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
