@@ -69,6 +69,54 @@ def check_existing_pr(package_id: str, version: str) -> bool:
         return False  # Continue on error
 
 
+def search_related_issues(package_id: str, version: str) -> list:
+    """
+    Search for open issues related to this package update.
+    Returns list of issue numbers that match.
+    """
+    try:
+        # Search for issues that contain both package ID and version
+        search_query = f"{package_id} {version} in:title,body"
+        print(f"🔍 Searching for related issues: {package_id} version {version}")
+        
+        result = subprocess.run(
+            [
+                'gh', 'issue', 'list',
+                '--repo', 'microsoft/winget-pkgs',
+                '--search', search_query,
+                '--state', 'open',
+                '--json', 'number,title',
+                '--limit', '5'
+            ],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        if result.stdout.strip():
+            issues = json.loads(result.stdout)
+            if issues:
+                matching_issues = []
+                for issue in issues:
+                    # Check if title or body contains both package ID and version
+                    title_lower = issue['title'].lower()
+                    package_lower = package_id.lower()
+                    
+                    # Match if issue contains package name and version
+                    if package_lower in title_lower and version in issue['title']:
+                        matching_issues.append(issue['number'])
+                        print(f"   ✅ Found related issue: #{issue['number']} - {issue['title']}")
+                
+                return matching_issues
+        
+        print("   ℹ️  No related issues found")
+        return []
+        
+    except subprocess.CalledProcessError as e:
+        print(f"   ⚠️  Could not search issues: {e}")
+        return []
+
+
 def create_pull_request(
     fork_owner: str,
     package_id: str,
@@ -86,7 +134,13 @@ def create_pull_request(
         # Build PR body with separate links for repo and workflow run
         repo_url = f"https://github.com/{fork_owner}/{repo_name}"
         workflow_url = f"https://github.com/{fork_owner}/{repo_name}/actions/runs/{workflow_run_id}"
-        body = f"Automated by [{fork_owner}/{repo_name}]({repo_url}) in workflow run [#{workflow_run_number}]({workflow_url})."
+        body = f"Automated by [{fork_owner}/{repo_name}]({repo_url}) in workflow run [#{workflow_run_number}]({workflow_url})"
+        
+        # Search for related issues and add to PR body
+        related_issues = search_related_issues(package_id, version)
+        if related_issues:
+            body += "\n\n"
+            body += "\n".join([f"Closes #{issue}" for issue in related_issues])
         
         # Use gh CLI to create PR
         subprocess.run(

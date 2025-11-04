@@ -20,6 +20,8 @@ jobs:
       
       - name: Delete merged PR branches from fork
         run: |
+          set +e  # Don't exit on error - we want to continue processing all PRs
+          
           fork_repo="${{ secrets.WINGET_FORK_REPO || format('{0}/winget-pkgs', github.repository_owner) }}"
           
           echo "🔍 Checking for merged PRs in microsoft/winget-pkgs..."
@@ -53,16 +55,16 @@ jobs:
             head_repo=$(echo "$pr" | jq -r '.headRepository.nameWithOwner // ""')
             
             # Skip if head repository info is missing (branch already deleted from fork)
-            if [ -z "$head_repo" ]; then
+            if [ -z "$head_repo" ] || [ "$head_repo" = "null" ]; then
               echo "⏭️  PR #$pr_number - head repository info missing (branch likely deleted) - skipping"
-              ((skipped_count++))
+              skipped_count=$((skipped_count + 1))
               continue
             fi
             
             # Only process branches from our fork
             if [ "$head_repo" != "$fork_repo" ]; then
               echo "⏭️  PR #$pr_number - branch from different repo ($head_repo) - skipping"
-              ((skipped_count++))
+              skipped_count=$((skipped_count + 1))
               continue
             fi
             
@@ -76,14 +78,14 @@ jobs:
               echo "   🗑️  Deleting branch from fork..."
               if gh api -X DELETE "/repos/$fork_repo/git/refs/heads/$branch_name" > /dev/null 2>&1; then
                 echo "   ✅ Branch deleted successfully"
-                ((deleted_count++))
+                deleted_count=$((deleted_count + 1))
               else
                 echo "   ⚠️  Failed to delete branch"
-                ((error_count++))
+                error_count=$((error_count + 1))
               fi
             else
               echo "   ℹ️  Branch already deleted"
-              ((skipped_count++))
+              skipped_count=$((skipped_count + 1))
             fi
           done
           
@@ -101,5 +103,8 @@ jobs:
           echo "- **Branches deleted:** $deleted_count" >> $GITHUB_STEP_SUMMARY
           echo "- **Already deleted/skipped:** $skipped_count" >> $GITHUB_STEP_SUMMARY
           echo "- **Errors:** $error_count" >> $GITHUB_STEP_SUMMARY
+          
+          # Exit with success (0) regardless of individual branch deletion errors
+          exit 0
         env:
           GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
