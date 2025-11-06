@@ -56,6 +56,7 @@ def get_release_info_from_config(checkver_config: Dict, metadata: Dict) -> Dict:
     """
     Get release notes from checkver config or metadata if defined.
     Returns dict with releaseNotes and releaseNotesUrl, or None if not defined.
+    Supports releaseNotesScript for dynamic fetching of release notes.
     """
     # First try to get from metadata (extracted from script output)
     release_notes = metadata.get('releasenotes') if metadata else None
@@ -65,7 +66,22 @@ def get_release_info_from_config(checkver_config: Dict, metadata: Dict) -> Dict:
     if not release_notes:
         release_notes = checkver_config.get('releaseNotes')
     if not release_notes_url:
-        release_notes_url = checkver_config.get('releaseNotesUrl')
+        release_notes_url = checkver_config.get('releaseNotesUrlTemplate')
+    
+    # Execute releaseNotesScript if defined and no release notes yet
+    if not release_notes and 'releaseNotesScript' in checkver_config:
+        release_notes_script = checkver_config['releaseNotesScript']
+        if metadata and '{' in release_notes_script:
+            # Replace metadata placeholders in script
+            for key, value in metadata.items():
+                release_notes_script = release_notes_script.replace('{' + key + '}', str(value))
+        
+        # Execute the PowerShell script
+        from .script import run_powershell_script
+        script_output = run_powershell_script(release_notes_script)
+        if script_output and script_output.strip():
+            release_notes = script_output.strip()
+            print(f"✅ Fetched release notes from script ({len(release_notes)} chars)")
     
     if not release_notes and not release_notes_url:
         return None

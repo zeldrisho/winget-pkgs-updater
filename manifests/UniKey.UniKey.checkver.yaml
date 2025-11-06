@@ -34,14 +34,14 @@ checkver:
     
     $latestBuild = ($buildValues | Measure-Object -Maximum).Maximum
     
-    $homePage = Invoke-WebRequest -Uri "https://www.unikey.org/" -UseBasicParsing
+    $homePage = Invoke-WebRequest -Uri "https://unikey.org" -UseBasicParsing
     $releaseNotes = ""
     $releaseNotesUrl = ""
     
     if ($homePage.Content -match 'Ngày\s+\d+/\d+/2025:[^<]*<[^>]*>Phát hành[^<]*<a href="([^"]+)"[^>]*>([^<]+)</a>([^<]*)') {
         $releaseNotesUrl = $Matches[1]
         if (-not $releaseNotesUrl.StartsWith('http')) {
-            $releaseNotesUrl = "https://www.unikey.org$releaseNotesUrl"
+            $releaseNotesUrl = "https://unikey.org$releaseNotesUrl"
         }
         
         $linkText = $Matches[2] + $Matches[3]
@@ -50,7 +50,7 @@ checkver:
     }
     
     if (-not $releaseNotes -and $builds.arm64 -eq $latestBuild) {
-        $releaseNotesUrl = "https://www.unikey.org/unikey_arm64.html"
+        $releaseNotesUrl = "https://unikey.org/unikey_arm64.html"
         $releaseNotes = "Released 4.6 RC2 ARM64 native build for Windows 11 with Snapdragon processors"
     }
     

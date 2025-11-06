@@ -1,7 +1,7 @@
 checkver:
   type: script
   script: |
-    $response = Invoke-WebRequest -Uri "https://www.ntlite.com/download/" -UseBasicParsing
+    $response = Invoke-WebRequest -Uri "https://ntlite.com/download" -UseBasicParsing
     Write-Output $response.Content
   regex: ">v([\\d.]+)"
 installerUrlTemplate:

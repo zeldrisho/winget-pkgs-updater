@@ -218,6 +218,25 @@ installerUrlTemplate: "https://example.com/{version}/app.exe"
 ```
 Use `${1}`, `${2}`, etc. to reference capture groups.
 
+### Release Notes Support
+
+**GitHub-based packages**: ReleaseNotes and ReleaseNotesUrl are automatically fetched from GitHub API (no config needed).
+
+**Script-based packages**: Use `releaseNotesScript` to dynamically fetch release notes:
+```yaml
+releaseNotesScript: |
+  $url = "https://example.com/release-notes-{major}-{minor}-{patch}"
+  $resp = Invoke-WebRequest -Uri $url -UseBasicParsing
+  # Extract and format release notes
+  Write-Output $notes
+
+releaseNotesUrlTemplate: "https://example.com/release-notes-{major}-{minor}-{patch}"
+```
+
+**Naming Convention:**
+- Config fields with placeholders use `Template` suffix: `installerUrlTemplate`, `releaseNotesUrlTemplate`
+- Output fields in version_info.json use resolved values: `installerUrl`, `releaseNotesUrl`
+
 ### Multi-Architecture URLs
 
 ```yaml

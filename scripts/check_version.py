@@ -222,8 +222,10 @@ def check_version(checkver_path: str) -> Optional[Dict]:
     
     # Add release info if available
     if release_info:
-        result['releaseNotes'] = release_info['releaseNotes']
-        result['releaseNotesUrl'] = release_info['releaseNotesUrl']
+        if 'releaseNotes' in release_info:
+            result['releaseNotes'] = release_info['releaseNotes']
+        if 'releaseNotesUrl' in release_info:
+            result['releaseNotesUrl'] = release_info['releaseNotesUrl']
     
     return result
 

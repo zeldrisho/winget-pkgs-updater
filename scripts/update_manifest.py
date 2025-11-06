@@ -518,6 +518,12 @@ def main():
                     print(f"Detected version: {detected_version}, provided: {version}")
                     if metadata:
                         print(f"Extracted metadata: {metadata}")
+                        # Get release info from config with metadata placeholders
+                        from version.url import get_release_info_from_config
+                        release_info = get_release_info_from_config(checkver_config, metadata)
+                        if release_info:
+                            release_notes = release_info.get('releaseNotes')
+                            release_notes_url = release_info.get('releaseNotesUrl')
         
         # Generate installer URLs with all available placeholders
         version_short = version.rstrip('.0')

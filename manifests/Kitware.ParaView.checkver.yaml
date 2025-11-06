@@ -1,0 +1,38 @@
+checkver:
+  type: script
+  script: |
+    $resp = Invoke-WebRequest -Uri 'https://paraview.org/files/listing.txt'
+    $csv = $resp.Content | ConvertFrom-Csv -Delimiter ' ' -Header ('Path', 'Date', 'Time', 'Size')
+    $sorted = $csv | Sort-Object -Property 'Date' -Descending
+    $latest = ($sorted -match '/v(?<shortver>[\d.]+)/ParaView-([\d.]+)-Windows-Python(?<pythonver>[\d.]+)-msvc(?<msvcver>\d+)-AMD64\.msi' | Select-Object -First 1).Path
+    Write-Output $latest
+  regex: "/v[\\d.]+/ParaView-(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)-Windows-Python(?P<pythonver>[\\d.]+)-msvc(?P<msvcver>\\d+)-AMD64\\.msi"
+  replace: "${1}.${2}.${3}"
+
+releaseNotesScript: |
+  $version = '{version}'
+  $major = '{major}'
+  $minor = '{minor}'
+  $patch = '{patch}'
+  $url = "https://kitware.com/paraview-$major-$minor-$patch-release-notes"
+  try {
+    $resp = Invoke-WebRequest -Uri $url -UseBasicParsing
+    $content = $resp.Content
+    # Extract first paragraph with meaningful content
+    $paragraphs = [regex]::Matches($content, '<p>(.*?)</p>') | ForEach-Object {
+      $text = $_.Groups[1].Value -replace '<[^>]+>', '' -replace '&nbsp;', ' ' -replace '&amp;', '&' -replace '&#8220;', '"' -replace '&#8221;', '"' -replace '&#8217;', "'"
+      $text.Trim()
+    } | Where-Object { $_.Length -gt 50 -and $_ -notmatch 'newsletter|sign up|subscribe' }
+    
+    # Get first 2-3 paragraphs as bullet points
+    $notes = ($paragraphs | Select-Object -First 3 | ForEach-Object { "- $_" }) -join "`n"
+    if ($notes) {
+      Write-Output $notes
+    }
+  } catch {
+    # Silently fail if release notes can't be fetched
+  }
+
+installerUrlTemplate: "https://paraview.org/paraview-downloads/download.php?submit=Download&version=v{major}.{minor}&type=binary&os=Windows&downloadFile=ParaView-{version}-Windows-Python{pythonver}-msvc{msvcver}-AMD64.msi"
+
+releaseNotesUrlTemplate: "https://kitware.com/paraview-{major}-{minor}-{patch}-release-notes"
