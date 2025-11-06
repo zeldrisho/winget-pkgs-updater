@@ -98,17 +98,11 @@ def search_related_issues(package_id: str, version: str) -> list:
             if issues:
                 matching_issues = []
                 for issue in issues:
-                    # Check if title or body contains both package ID and version
-                    title_lower = issue['title'].lower()
+                    # GitHub search already filtered by package_id and version
+                    # Just verify the version is in the body (most reliable check)
                     body_text = issue.get('body', '') or ''
-                    body_lower = body_text.lower()
-                    package_lower = package_id.lower()
                     
-                    # Match if issue contains package name and version in title or body
-                    title_match = package_lower in title_lower and version in issue['title']
-                    body_match = package_lower in body_lower and version in body_text
-                    
-                    if title_match or body_match:
+                    if version in body_text:
                         matching_issues.append(issue['number'])
                         print(f"   ✅ Found related issue: #{issue['number']} - {issue['title']}")
                 
