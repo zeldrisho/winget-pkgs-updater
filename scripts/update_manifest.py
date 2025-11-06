@@ -488,37 +488,56 @@ def main():
             print("Error: installerUrlTemplate not found in checkver config", file=sys.stderr)
             sys.exit(1)
         
-        # Generate installer URLs
+        # Get metadata - need to re-run version check to extract named groups
+        metadata = {}
+        release_notes = None
+        release_notes_url = None
+        
+        checkver = checkver_config.get('checkver', {})
+        if isinstance(checkver, dict):
+            if checkver.get('type') == 'github':
+                # For GitHub releases, fetch release notes
+                repo = checkver.get('repo')
+                if repo:
+                    print(f"Fetching GitHub release metadata for {repo}...")
+                    # Fetch release info for this specific version
+                    from version.github import get_github_release_info
+                    # Build a temporary config that get_github_release_info can use
+                    temp_config = {'checkver': {'script': f'https://api.github.com/repos/{repo}/releases'}}
+                    release_info = get_github_release_info(temp_config, version)
+                    if release_info:
+                        release_notes = release_info.get('releaseNotes')
+                        release_notes_url = release_info.get('releaseNotesUrl')
+            elif checkver.get('type') == 'script':
+                # For script-based checkver, re-run to extract metadata (named groups)
+                print("Extracting metadata from version check script...")
+                from version.script import get_latest_version_script
+                version_result = get_latest_version_script(checkver_config)
+                if version_result and isinstance(version_result, tuple):
+                    detected_version, metadata = version_result
+                    print(f"Detected version: {detected_version}, provided: {version}")
+                    if metadata:
+                        print(f"Extracted metadata: {metadata}")
+        
+        # Generate installer URLs with all available placeholders
         version_short = version.rstrip('.0')
         if isinstance(installer_url_template, dict):
             # Multi-architecture
             installer_urls = {}
             for arch, url_template in installer_url_template.items():
-                installer_urls[arch] = url_template.replace('{version}', version).replace('{versionShort}', version_short)
+                url = url_template.replace('{version}', version).replace('{versionShort}', version_short)
+                # Replace custom metadata placeholders
+                for key, value in metadata.items():
+                    url = url.replace('{' + key + '}', value)
+                installer_urls[arch] = url
             installer_url = list(installer_urls.values())[0]  # Use first URL as primary
         else:
             # Single architecture
             installer_url = installer_url_template.replace('{version}', version).replace('{versionShort}', version_short)
+            # Replace custom metadata placeholders
+            for key, value in metadata.items():
+                installer_url = installer_url.replace('{' + key + '}', value)
             installer_urls = None
-        
-        # Get metadata - for GitHub releases, fetch release notes
-        release_notes = None
-        release_notes_url = None
-        metadata = None
-        
-        checkver = checkver_config.get('checkver', {})
-        if isinstance(checkver, dict) and checkver.get('type') == 'github':
-            repo = checkver.get('repo')
-            if repo:
-                print(f"Fetching GitHub release metadata for {repo}...")
-                # Fetch release info for this specific version
-                from version.github import get_github_release_info
-                # Build a temporary config that get_github_release_info can use
-                temp_config = {'checkver': {'script': f'https://api.github.com/repos/{repo}/releases'}}
-                release_info = get_github_release_info(temp_config, version)
-                if release_info:
-                    release_notes = release_info.get('releaseNotes')
-                    release_notes_url = release_info.get('releaseNotesUrl')
         
         manifest_path = checkver_config.get('manifestPath', '')
         
