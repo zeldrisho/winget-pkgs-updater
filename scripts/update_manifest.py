@@ -526,23 +526,19 @@ def main():
                             release_notes_url = release_info.get('releaseNotesUrl')
         
         # Generate installer URLs with all available placeholders
-        version_short = version.rstrip('.0')
+        from version.url import get_installer_url
         if isinstance(installer_url_template, dict):
             # Multi-architecture
             installer_urls = {}
             for arch, url_template in installer_url_template.items():
-                url = url_template.replace('{version}', version).replace('{versionShort}', version_short)
-                # Replace custom metadata placeholders
-                for key, value in metadata.items():
-                    url = url.replace('{' + key + '}', value)
+                # Create temp config for get_installer_url
+                temp_config = {'installerUrlTemplate': url_template}
+                url = get_installer_url(temp_config, version, metadata)
                 installer_urls[arch] = url
             installer_url = list(installer_urls.values())[0]  # Use first URL as primary
         else:
             # Single architecture
-            installer_url = installer_url_template.replace('{version}', version).replace('{versionShort}', version_short)
-            # Replace custom metadata placeholders
-            for key, value in metadata.items():
-                installer_url = installer_url.replace('{' + key + '}', value)
+            installer_url = get_installer_url(checkver_config, version, metadata)
             installer_urls = None
         
         manifest_path = checkver_config.get('manifestPath', '')
