@@ -164,8 +164,17 @@ jobs:
       
       - name: Set up Git
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          # Fetch the authenticated user's information from GitHub API
+          user_info=$(gh api user)
+          git_name=$(echo "$user_info" | jq -r '.name // .login')
+          git_email=$(echo "$user_info" | jq -r '.email // "\(.login)@users.noreply.github.com"')
+          
+          git config --global user.name "$git_name"
+          git config --global user.email "$git_email"
+          
+          echo "✅ Configured Git with user: $git_name <$git_email>"
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
       
       - name: Update manifest and create PR
         run: |

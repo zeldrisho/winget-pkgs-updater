@@ -1,8 +1,8 @@
 checkver:
   type: script
   script: |
-    $output = & wget -qO- "https://dev.mysql.com/downloads/mysql/?tpl=files&os=src" 2>&1
+    $output = & wget -qO- "https://dev.mysql.com/downloads/mysql/#info-tab" 2>&1
     Write-Output $output
-  regex: "\\(mysql-([\\d.]+)\\.zip\\)"
+  regex: "MySQL Community Server ([\\d.]+)"
 
 installerUrlTemplate: "https://dev.mysql.com/get/Downloads/MySQL-{versionMajorMinor}/mysql-{version}-winx64.msi"
