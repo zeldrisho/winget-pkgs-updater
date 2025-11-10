@@ -153,15 +153,17 @@ jobs:
               return 1  # Can't compare, assume not older
             fi
             
-            local result=$(python3 -c '
-from packaging.version import parse, InvalidVersion
-try:
-    v1 = parse("'"$version1"'")
-    v2 = parse("'"$version2"'")
-    print("1" if v1 < v2 else "0")
-except InvalidVersion:
-    print("0")
-' 2>/dev/null || echo "0")
+            local result=$(python3 <<EOF
+          from packaging.version import parse, InvalidVersion
+          try:
+              v1 = parse('$version1')
+              v2 = parse('$version2')
+              print('1' if v1 < v2 else '0')
+          except InvalidVersion:
+              print('0')
+          EOF
+          )
+            result=$(echo "$result" 2>/dev/null || echo "0")
             
             [ "$result" = "1" ]
           }
@@ -175,15 +177,17 @@ except InvalidVersion:
               return 1  # Can't compare, assume not older/equal
             fi
             
-            local result=$(python3 -c '
-from packaging.version import parse, InvalidVersion
-try:
-    v1 = parse("'"$version1"'")
-    v2 = parse("'"$version2"'")
-    print("1" if v1 <= v2 else "0")
-except InvalidVersion:
-    print("0")
-' 2>/dev/null || echo "0")
+            local result=$(python3 <<EOF
+          from packaging.version import parse, InvalidVersion
+          try:
+              v1 = parse('$version1')
+              v2 = parse('$version2')
+              print('1' if v1 <= v2 else '0')
+          except InvalidVersion:
+              print('0')
+          EOF
+          )
+            result=$(echo "$result" 2>/dev/null || echo "0")
             
             [ "$result" = "1" ]
           }
