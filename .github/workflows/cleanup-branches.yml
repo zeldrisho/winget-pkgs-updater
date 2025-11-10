@@ -108,23 +108,23 @@ jobs:
             fi
             
             # Use Python to find the latest version
-            local latest=$(echo "$versions" | python3 -c '
-import sys
-from packaging.version import parse, InvalidVersion
-
-versions = []
-for line in sys.stdin:
-    line = line.strip()
-    if line:
-        try:
-            versions.append((parse(line), line))
-        except InvalidVersion:
-            pass
-
-if versions:
-    versions.sort(reverse=True)
-    print(versions[0][1])
-' 2>/dev/null || echo "")
+            local latest=$(echo "$versions" | python3 -c '\
+              import sys
+              from packaging.version import parse, InvalidVersion
+              
+              versions = []
+              for line in sys.stdin:
+                  line = line.strip()
+                  if line:
+                      try:
+                          versions.append((parse(line), line))
+                      except InvalidVersion:
+                          pass
+              
+              if versions:
+                  versions.sort(reverse=True)
+                  print(versions[0][1])
+              ' 2>/dev/null || echo "")
             
             echo "$latest"
           }
@@ -138,15 +138,15 @@ if versions:
               return 1  # Can't compare, assume not older
             fi
             
-            local result=$(python3 -c '
-from packaging.version import parse, InvalidVersion
-try:
-    v1 = parse("'"$version1"'")
-    v2 = parse("'"$version2"'")
-    print("1" if v1 < v2 else "0")
-except InvalidVersion:
-    print("0")
-' 2>/dev/null || echo "0")
+            local result=$(python3 -c '\
+              from packaging.version import parse, InvalidVersion
+              try:
+                  v1 = parse("'"$version1"'")
+                  v2 = parse("'"$version2"'")
+                  print("1" if v1 < v2 else "0")
+              except InvalidVersion:
+                  print("0")
+              ' 2>/dev/null || echo "0")
             
             [ "$result" = "1" ]
           }
