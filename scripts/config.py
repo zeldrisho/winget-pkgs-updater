@@ -134,3 +134,26 @@ def load_checkver_config(checkver_path: str) -> Dict:
         config['manifestPath'] = derive_manifest_path(config['packageIdentifier'])
     
     return config
+
+
+if __name__ == '__main__':
+    import sys
+    
+    if len(sys.argv) < 3:
+        print("Usage: python config.py get-manifest-path <package_identifier>", file=sys.stderr)
+        sys.exit(1)
+    
+    command = sys.argv[1]
+    
+    if command == 'get-manifest-path':
+        package_id = sys.argv[2]
+        try:
+            manifest_path = derive_manifest_path(package_id)
+            print(manifest_path)
+            sys.exit(0)
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print(f"Unknown command: {command}", file=sys.stderr)
+        sys.exit(1)
