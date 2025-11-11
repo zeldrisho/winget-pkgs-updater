@@ -57,17 +57,8 @@ def clone_winget_pkgs(fork_repo: str, temp_dir: str, token: str) -> bool:
         else:
             print(f"✅ Successfully synced with upstream")
         
-        # Configure git
-        subprocess.run(
-            ['git', 'config', 'user.name', 'github-actions[bot]'],
-            cwd=temp_dir,
-            check=True
-        )
-        subprocess.run(
-            ['git', 'config', 'user.email', 'github-actions[bot]@users.noreply.github.com'],
-            cwd=temp_dir,
-            check=True
-        )
+        # Git user config is now set globally in the workflow
+        # No need to configure it here - it will use the global config
         
         return True
     except Exception as e:

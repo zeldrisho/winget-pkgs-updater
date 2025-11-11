@@ -69,9 +69,13 @@ jobs:
           git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${fork_repo}.git" fork_repo
           cd fork_repo
           
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Configure git with authenticated user
+          user_info=$(gh api user)
+          git_name=$(echo "$user_info" | jq -r '.name // .login')
+          git_email=$(echo "$user_info" | jq -r '.email // "\(.login)@users.noreply.github.com"')
+          git config user.name "$git_name"
+          git config user.email "$git_email"
+          echo "✅ Configured Git with user: $git_name <$git_email>"
           
           deleted_count=0
           skipped_count=0
