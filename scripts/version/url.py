@@ -13,6 +13,7 @@ def get_installer_url(checkver_config: Dict, version: str, metadata: Dict = None
     Supports placeholders:
     - {version}: Full version (e.g., 4.6.250531)
     - {versionShort}: Version without trailing .0 (e.g., 4.6.250531 -> 4.6.250531, 2.4.4.0 -> 2.4.4)
+    - {versionNoDots}: Version with dots removed (e.g., 6.9.0.17160 -> 69017160)
     - {versionMajor}: Major version only (e.g., 3.0.0.36 -> 3)
     - {versionMajorMinor}: Major.Minor version (e.g., 9.5.0 -> 9.5)
     - Any named group from regex metadata (e.g., {rcversion}, {build})
@@ -25,6 +26,9 @@ def get_installer_url(checkver_config: Dict, version: str, metadata: Dict = None
     # Handle versionShort placeholder (e.g., 2.3.12.0 -> 2.3.12)
     version_short = re.sub(r'\.0$', '', version)
     
+    # Handle versionNoDots placeholder (e.g., 6.9.0.17160 -> 69017160)
+    version_no_dots = version.replace('.', '')
+    
     # Handle version component placeholders
     version_parts = version.split('.')
     version_major = version_parts[0] if len(version_parts) >= 1 else version
@@ -34,6 +38,7 @@ def get_installer_url(checkver_config: Dict, version: str, metadata: Dict = None
     replacements = {
         'version': version,
         'versionShort': version_short,
+        'versionNoDots': version_no_dots,
         'versionMajor': version_major,
         'versionMajorMinor': version_major_minor,
         **metadata  # Include all custom metadata (rcversion, build, etc.)
