@@ -41,7 +41,7 @@ def update_manifest_content(
 
     # Extract old version from PackageVersion field
     old_version = None
-    version_match = re.search(r'PackageVersion:\s*([\d\.]+)', content)
+    version_match = re.search(r'PackageVersion:\s*([\d\.\-]+)', content)
     if version_match:
         old_version = version_match.group(1)
         print(f"  Detected old version: {old_version}")
@@ -297,18 +297,19 @@ def _update_product_codes(content: str, product_codes: Dict[str, str]) -> str:
 def _update_release_notes(content: str, release_notes: str) -> str:
     """Update ReleaseNotes field in manifest (only if not commented out)"""
     yaml_notes = release_notes.replace('\r\n', '\n').replace('\r', '\n')
-    
-    if re.search(r'^(\s*)ReleaseNotes:\s*\|-', content, re.MULTILINE):
-        # Block scalar format
-        content = re.sub(
-            r'^(\s*)ReleaseNotes:\s*\|-\n(?:.*\n)*?(?=\w+:)',
-            fr'\1ReleaseNotes: |-\n\1  {yaml_notes.replace(chr(10), chr(10) + "  ")}\n',
-            content,
-            flags=re.MULTILINE
-        )
+    # Prefer to update block scalar format (ReleaseNotes: |-) and handle EOF
+    block_pattern = re.compile(r'^(\s*)ReleaseNotes:\s*\|-\n(.*?)(?=^[^\s].*:|\Z)', re.MULTILINE | re.DOTALL)
+    if block_pattern.search(content):
+        def _block_repl(m):
+            indent = m.group(1)
+            # Indent each line of the YAML notes by two spaces to match block style
+            indented = yaml_notes.replace('\n', '\n' + '  ')
+            return f"{indent}ReleaseNotes: |-\n{indent}  {indented}\n"
+
+        content = block_pattern.sub(_block_repl, content)
         print(f"  ✅ Updated ReleaseNotes (block scalar)")
     else:
-        # Single line format - only update if not commented
+        # Single line format - convert to block scalar and insert notes
         content = re.sub(
             r'^(\s*)(ReleaseNotes:).*',
             fr'\1\2 |-\n\1  {yaml_notes.replace(chr(10), chr(10) + "  ")}',
