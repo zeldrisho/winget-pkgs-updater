@@ -39,9 +39,9 @@ def update_manifest_content(
     # Capture original DisplayVersion (if present) before any replacements
     original_display_match = re.search(r'DisplayVersion:\s*([^\n]+)', content)
 
-    # Extract old version from PackageVersion field
+    # Extract old version from PackageVersion field (handle both quoted and unquoted)
     old_version = None
-    version_match = re.search(r'PackageVersion:\s*([\d\.\-]+)', content)
+    version_match = re.search(r'PackageVersion:\s*["\']?([\d\.\-]+)["\']?', content)
     if version_match:
         old_version = version_match.group(1)
         print(f"  Detected old version: {old_version}")
@@ -56,6 +56,22 @@ def update_manifest_content(
         # Replace all occurrences of full version
         content = content.replace(old_version, version)
         print(f"  ✅ Replaced all occurrences with {version}")
+        
+        # Also replace quoted versions (e.g., '4.2' -> '4.4' in PackageVersion: '4.2')
+        quoted_old = f"'{old_version}'"
+        quoted_new = f"'{version}'"
+        quoted_count = content.count(quoted_old)
+        if quoted_count > 0:
+            content = content.replace(quoted_old, quoted_new)
+            print(f"  ✅ Also replaced {quoted_count} occurrences of quoted version {quoted_old} with {quoted_new}")
+        
+        # Also replace double-quoted versions (e.g., "4.2" -> "4.4")
+        double_quoted_old = f'"{old_version}"'
+        double_quoted_new = f'"{version}"'
+        double_quoted_count = content.count(double_quoted_old)
+        if double_quoted_count > 0:
+            content = content.replace(double_quoted_old, double_quoted_new)
+            print(f"  ✅ Also replaced {double_quoted_count} occurrences of double-quoted version {double_quoted_old} with {double_quoted_new}")
         
         # Also replace version variants (short version, major.minor, etc.)
         old_parts = old_version.split('.')
