@@ -13,4 +13,3 @@ checkver:
 installerUrlTemplate:
   x64: "https://download.sysinternals.com/files/SysinternalsSuite.zip"
   arm64: "https://download.sysinternals.com/files/SysinternalsSuite-ARM64.zip"
-

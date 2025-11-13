@@ -224,11 +224,22 @@ def _update_multi_arch_hashes(content: str, arch_hashes: Dict[str, str]) -> str:
     """
     Update SHA256 hashes for multi-architecture packages.
     Supports multiple installer types per architecture by matching URL patterns.
+    
+    Special handling: When multiple architectures share the same InstallerUrl,
+    they will all receive the same hash value (required by WinGet validation).
     """
     lines = content.split('\n')
     updated_lines = []
     current_arch = None
     current_url = None
+    
+    # First pass: build URL-to-hash mapping to handle shared URLs
+    url_to_hash = {}
+    for arch, hash_val in arch_hashes.items():
+        # Extract base architecture (remove _zip, _msi suffixes)
+        base_arch = arch.split('_')[0]
+        # We'll need to match this during the update pass
+        url_to_hash[arch] = hash_val
     
     for line in lines:
         # Track current architecture
@@ -244,6 +255,7 @@ def _update_multi_arch_hashes(content: str, arch_hashes: Dict[str, str]) -> str:
         # Update hash for current architecture based on file type
         if 'InstallerSha256:' in line and current_arch and current_url:
             indent = len(line) - len(line.lstrip())
+            
             # Determine hash key based on file extension
             hash_key = current_arch
             if current_url.endswith('.zip'):
@@ -252,12 +264,34 @@ def _update_multi_arch_hashes(content: str, arch_hashes: Dict[str, str]) -> str:
                 hash_key = f"{current_arch}_msi"
             
             # Try exact match first, then fallback to arch-only
+            found_hash = None
             if hash_key in arch_hashes:
-                line = ' ' * indent + f'InstallerSha256: {arch_hashes[hash_key]}'
+                found_hash = arch_hashes[hash_key]
                 print(f"  ✅ Updated {hash_key} InstallerSha256")
             elif current_arch in arch_hashes:
-                line = ' ' * indent + f'InstallerSha256: {arch_hashes[current_arch]}'
+                found_hash = arch_hashes[current_arch]
                 print(f"  ✅ Updated {current_arch} InstallerSha256")
+            else:
+                # Check if any other architecture has the same URL
+                # This handles cases where x86 and x64 both use SysinternalsSuite.zip
+                for other_arch_key, hash_val in arch_hashes.items():
+                    base_arch = other_arch_key.split('_')[0]
+                    # Check if this hash is for a similar file type
+                    if current_url.endswith('.zip') and '_zip' in other_arch_key:
+                        found_hash = hash_val
+                        print(f"  ✅ Updated {current_arch} InstallerSha256 (shared URL with {base_arch})")
+                        break
+                    elif current_url.endswith('.msi') and '_msi' in other_arch_key:
+                        found_hash = hash_val
+                        print(f"  ✅ Updated {current_arch} InstallerSha256 (shared URL with {base_arch})")
+                        break
+                    elif not '_' in other_arch_key and not current_url.endswith(('.zip', '.msi')):
+                        found_hash = hash_val
+                        print(f"  ✅ Updated {current_arch} InstallerSha256 (shared URL with {base_arch})")
+                        break
+            
+            if found_hash:
+                line = ' ' * indent + f'InstallerSha256: {found_hash}'
         
         updated_lines.append(line)
     
