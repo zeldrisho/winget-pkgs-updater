@@ -1,0 +1,10 @@
+checkver:
+  type: script
+  script: |
+    $response = Invoke-WebRequest -Uri "https://www.lazarus-ide.org" -UseBasicParsing
+    Write-Output $response.Content
+  regex: "lazarus-([\\d.]+)-fpc-(?P<fpc>[\\d.]+)-win64\\.exe"
+
+installerUrlTemplate:
+  x64: "https://sourceforge.net/projects/lazarus/files/Lazarus%20Windows%2064%20bits/Lazarus%20{version}/lazarus-{version}-fpc-{fpc}-win64.exe/download"
+  x86: "https://sourceforge.net/projects/lazarus/files/Lazarus%20Windows%2032%20bits/Lazarus%20{version}/lazarus-{version}-fpc-{fpc}-win32.exe/download"
