@@ -1,0 +1,10 @@
+checkver:
+  type: script
+  script: |
+    $response = Invoke-WebRequest -Uri "http://www.jrsoftware.org/isdl.php" -UseBasicParsing
+    Write-Output $response.Content
+  regex: "innosetup-([\\d.]+)\\.exe"
+
+installerUrlTemplate: "https://jrsoftware.org/download.php/innosetup-{version}.exe"
+
+releaseNotesUrlTemplate: "https://jrsoftware.org/files/is6-whatsnew.htm"
