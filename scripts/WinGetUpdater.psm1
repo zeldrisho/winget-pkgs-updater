@@ -882,13 +882,18 @@ function Initialize-GitRepository {
     try {
         $cloneUrl = "https://x-access-token:$Token@github.com/$ForkRepo.git"
         Write-Host "Cloning repository: $ForkRepo" -ForegroundColor Cyan
+        Write-Host "Using shallow clone (--depth 1) for faster cloning..." -ForegroundColor Gray
 
-        git clone $cloneUrl $OutputPath 2>&1 | Out-Null
+        # Use shallow clone with --depth 1 for much faster cloning
+        # Also use --single-branch to only clone the default branch
+        $output = git clone --depth 1 --single-branch $cloneUrl $OutputPath 2>&1
 
         if ($LASTEXITCODE -ne 0) {
+            Write-Error "Git clone output: $output"
             throw "Git clone failed with exit code $LASTEXITCODE"
         }
 
+        Write-Host "✅ Repository cloned successfully" -ForegroundColor Green
         return $true
     }
     catch {
