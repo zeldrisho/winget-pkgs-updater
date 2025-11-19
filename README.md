@@ -15,6 +15,8 @@ Automated tool to check for new package versions and create pull requests to [mi
 
 ## Quick Setup
 
+**New to this project?** → See [docs/quick-start.md](docs/quick-start.md) for a complete setup guide!
+
 ### 1. Fork Repositories
 
 - Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
@@ -40,12 +42,22 @@ In your forked repository:
 
 ## Adding Packages
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guide on adding new packages.
+See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contributing.md](docs/contributing.md) for detailed instructions.
 
 ## Documentation
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) - How to add packages
-- [manifests/README.md](manifests/README.md) - Checkver configuration
+### Getting Started
+- **[docs/quick-start.md](docs/quick-start.md)** - 5-minute setup guide
+- **[docs/contributing.md](docs/contributing.md)** - How to add packages
+
+### Reference
+- **[docs/checkver-guide.md](docs/checkver-guide.md)** - Complete checkver configuration reference
+- **[docs/architecture.md](docs/architecture.md)** - System architecture and design
+- **[docs/development.md](docs/development.md)** - Developer guide and testing
+
+### Additional
+- **[manifests/README.md](manifests/README.md)** - Checkver quick reference
+- **[.github/workflows/README.md](.github/workflows/README.md)** - Workflow documentation
 
 ## How It Works
 
@@ -85,10 +97,112 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guide on adding new packages
 
 ## Requirements
 
-- Python 3.11+
 - PowerShell 7.5+
 - GitHub CLI (`gh`)
-- Dependencies: `pip install -r scripts/requirements.txt`
+- Git
+
+### PowerShell Modules
+- `powershell-yaml` - Automatically installed by workflow
+
+## Features Implemented
+
+✅ Version detection (GitHub API and PowerShell scripts)
+✅ Automatic package identifier and manifest path derivation
+✅ Installer download and SHA256 calculation
+✅ Manifest fetching from microsoft/winget-pkgs
+✅ YAML manifest updates with version replacement
+✅ Git operations (clone, branch, commit, push)
+✅ Pull request creation
+⏳ ProductCode extraction from MSI files (not yet implemented)
+⏳ SignatureSha256 calculation for MSIX packages (not yet implemented)
+
+## Local Development
+
+### Testing Version Detection
+
+```powershell
+# Test a package
+pwsh -File scripts/Check-Version.ps1 manifests/Microsoft.PowerShell.checkver.yaml
+
+# Save output to JSON
+pwsh -File scripts/Check-Version.ps1 manifests/Package.checkver.yaml version_info.json
+
+# View output
+Get-Content version_info.json | ConvertFrom-Json | ConvertTo-Json
+```
+
+Exit codes:
+- `0` = New version detected
+- `1` = No update needed or check failed
+
+### Prerequisites
+
+1. Install PowerShell 7.5+:
+   ```bash
+   # Windows (winget)
+   winget install Microsoft.PowerShell
+
+   # macOS (Homebrew)
+   brew install powershell/tap/powershell
+
+   # Linux (see https://aka.ms/install-powershell)
+   ```
+
+2. Install GitHub CLI:
+   ```bash
+   # Windows
+   winget install GitHub.cli
+
+   # macOS
+   brew install gh
+
+   # Linux
+   # See https://github.com/cli/cli#installation
+   ```
+
+3. Install PowerShell modules:
+   ```powershell
+   Install-Module -Name powershell-yaml -Scope CurrentUser
+   ```
+
+4. Authenticate GitHub CLI:
+   ```bash
+   gh auth login
+   ```
+
+## Project Structure
+
+```
+winget-pkgs-updater/
+├── .github/
+│   ├── workflows/
+│   │   ├── update-packages.yml    # Main workflow
+│   │   └── cleanup-branches.yml   # Branch cleanup
+│   └── copilot-instructions.md    # AI assistant instructions
+├── docs/
+│   ├── architecture.md            # System architecture
+│   ├── checkver-guide.md          # Checkver configuration
+│   ├── development.md             # Developer guide
+│   └── contributing.md            # Contributing guide
+├── manifests/
+│   ├── *.checkver.yaml            # Package configurations
+│   └── README.md                  # Checkver basics
+├── scripts/
+│   ├── WinGetUpdater.psm1         # Main PowerShell module
+│   ├── Check-Version.ps1          # Version detection
+│   └── Update-Manifest.ps1        # Manifest update
+└── README.md                      # This file
+```
+
+## Environment Variables
+
+- `GITHUB_TOKEN` or `GH_TOKEN` - GitHub token (required)
+- `WINGET_FORK_REPO` - Fork repository (optional, defaults to `{owner}/winget-pkgs`)
+- `GITHUB_REPOSITORY_OWNER` - Repository owner (auto-set by GitHub Actions)
+
+## Contributing
+
+See [docs/contributing.md](docs/contributing.md) for guidelines on adding new packages.
 
 ## License
 

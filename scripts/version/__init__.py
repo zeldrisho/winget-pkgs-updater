@@ -1,3 +1,0 @@
-"""
-Version detection modules
-"""
