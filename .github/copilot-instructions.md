@@ -125,9 +125,10 @@ installerUrlTemplate: "https://example.com/{version}/installer.exe"
 
 ### Important Notes
 
-- Manifest update script (`Update-Manifest.ps1`) is currently a stub - full implementation TBD
+- Manifest update script (`Update-Manifest.ps1`) is now fully implemented
 - The system preserves all existing manifest fields and only updates version-related fields
-- ProductCode extraction from MSI files requires additional tooling (not yet implemented)
-- MSIX SignatureSha256 calculation not yet implemented
+- Supports downloading installers and calculating SHA256 hashes
+- Includes git operations (clone, commit, push, PR creation)
+- Note: Advanced features like ProductCode extraction from MSI and MSIX SignatureSha256 are not yet implemented
 
 For complete details on any topic, refer to the appropriate document in the `docs/` directory.

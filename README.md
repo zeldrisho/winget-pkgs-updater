@@ -95,6 +95,18 @@ See [docs/contributing.md](docs/contributing.md) for detailed guide on adding ne
 ### PowerShell Modules
 - `powershell-yaml` - Automatically installed by workflow
 
+## Features Implemented
+
+✅ Version detection (GitHub API and PowerShell scripts)
+✅ Automatic package identifier and manifest path derivation
+✅ Installer download and SHA256 calculation
+✅ Manifest fetching from microsoft/winget-pkgs
+✅ YAML manifest updates with version replacement
+✅ Git operations (clone, branch, commit, push)
+✅ Pull request creation
+⏳ ProductCode extraction from MSI files (not yet implemented)
+⏳ SignatureSha256 calculation for MSIX packages (not yet implemented)
+
 ## Local Development
 
 ### Testing Version Detection

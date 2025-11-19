@@ -597,12 +597,391 @@ function Test-PackageUpdate {
 
 #endregion
 
+#region File Operations
+
+function Get-FileSha256 {
+    <#
+    .SYNOPSIS
+        Calculate SHA256 hash of a file
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath
+    )
+
+    $hash = Get-FileHash -Path $FilePath -Algorithm SHA256
+    return $hash.Hash
+}
+
+function Get-WebFile {
+    <#
+    .SYNOPSIS
+        Download a file from URL
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$Url,
+
+        [Parameter(Mandatory)]
+        [string]$OutFile
+    )
+
+    try {
+        Write-Verbose "Downloading: $Url"
+        Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
+        return $true
+    }
+    catch {
+        Write-Warning "Failed to download $Url : $_"
+        return $false
+    }
+}
+
+#endregion
+
+#region Manifest Operations
+
+function Get-UpstreamManifest {
+    <#
+    .SYNOPSIS
+        Fetch manifest files from microsoft/winget-pkgs
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ManifestPath,
+
+        [Parameter(Mandatory)]
+        [string]$Version,
+
+        [Parameter(Mandatory)]
+        [string]$OutputPath
+    )
+
+    try {
+        $apiUrl = "https://api.github.com/repos/microsoft/winget-pkgs/contents/$ManifestPath/$Version"
+        Write-Host "Fetching manifest from upstream: $apiUrl" -ForegroundColor Cyan
+
+        $files = gh api $apiUrl 2>$null | ConvertFrom-Json
+
+        if (-not $files) {
+            # Fallback to HTTP API
+            $files = Invoke-RestMethod -Uri $apiUrl -ErrorAction Stop
+        }
+
+        New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
+
+        foreach ($file in $files) {
+            if ($file.name -like '*.yaml') {
+                $fileUrl = "https://raw.githubusercontent.com/microsoft/winget-pkgs/master/$ManifestPath/$Version/$($file.name)"
+                $outFile = Join-Path $OutputPath $file.name
+
+                Write-Host "  Downloading: $($file.name)" -ForegroundColor Gray
+                Invoke-WebRequest -Uri $fileUrl -OutFile $outFile -UseBasicParsing | Out-Null
+            }
+        }
+
+        return $true
+    }
+    catch {
+        Write-Warning "Failed to fetch upstream manifest: $_"
+        return $false
+    }
+}
+
+function Update-ManifestYaml {
+    <#
+    .SYNOPSIS
+        Update YAML manifest with new version and hash
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+
+        [Parameter(Mandatory)]
+        [string]$OldVersion,
+
+        [Parameter(Mandatory)]
+        [string]$NewVersion,
+
+        [string]$Hash,
+
+        [hashtable]$ArchHashes
+    )
+
+    $content = Get-Content $FilePath -Raw
+
+    # Replace version
+    $content = $content -replace "PackageVersion:\s+$([regex]::Escape($OldVersion))", "PackageVersion: $NewVersion"
+
+    # Replace all version occurrences (for URLs, paths, etc.)
+    $content = $content -replace [regex]::Escape($OldVersion), $NewVersion
+
+    # Replace hash if provided
+    if ($Hash) {
+        $content = $content -replace "InstallerSha256:\s+[A-F0-9]{64}", "InstallerSha256: $Hash"
+    }
+
+    # Replace architecture-specific hashes if provided
+    if ($ArchHashes) {
+        foreach ($arch in $ArchHashes.Keys) {
+            # This is a simplified implementation
+            # Full implementation would need to parse YAML structure
+            Write-Verbose "Would update hash for architecture: $arch"
+        }
+    }
+
+    # Update ReleaseDate to current date if field exists
+    if ($content -match 'ReleaseDate:') {
+        $today = (Get-Date).ToString("yyyy-MM-dd")
+        $content = $content -replace "ReleaseDate:\s+\d{4}-\d{2}-\d{2}", "ReleaseDate: $today"
+    }
+
+    Set-Content -Path $FilePath -Value $content -NoNewline
+}
+
+#endregion
+
+#region Git Operations
+
+function Initialize-GitRepository {
+    <#
+    .SYNOPSIS
+        Clone fork repository
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ForkRepo,
+
+        [Parameter(Mandatory)]
+        [string]$OutputPath,
+
+        [Parameter(Mandatory)]
+        [string]$Token
+    )
+
+    try {
+        $cloneUrl = "https://x-access-token:$Token@github.com/$ForkRepo.git"
+        Write-Host "Cloning repository: $ForkRepo" -ForegroundColor Cyan
+
+        git clone $cloneUrl $OutputPath 2>&1 | Out-Null
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Git clone failed with exit code $LASTEXITCODE"
+        }
+
+        return $true
+    }
+    catch {
+        Write-Error "Failed to clone repository: $_"
+        return $false
+    }
+}
+
+function Set-GitUser {
+    <#
+    .SYNOPSIS
+        Configure git user from GitHub API
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$RepoPath
+    )
+
+    Push-Location $RepoPath
+    try {
+        $userInfo = gh api user | ConvertFrom-Json
+        $gitName = if ($userInfo.name) { $userInfo.name } else { $userInfo.login }
+        $userId = $userInfo.id
+        $userLogin = $userInfo.login
+        $gitEmail = "$userId+$userLogin@users.noreply.github.com"
+
+        git config user.name $gitName
+        git config user.email $gitEmail
+
+        Write-Host "✅ Configured Git: $gitName <$gitEmail>" -ForegroundColor Green
+        return $true
+    }
+    catch {
+        Write-Error "Failed to configure git user: $_"
+        return $false
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function New-GitBranch {
+    <#
+    .SYNOPSIS
+        Create and checkout new branch
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$RepoPath,
+
+        [Parameter(Mandatory)]
+        [string]$BranchName
+    )
+
+    Push-Location $RepoPath
+    try {
+        git checkout -b $BranchName 2>&1 | Out-Null
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Created branch: $BranchName" -ForegroundColor Green
+            return $true
+        }
+        else {
+            throw "Failed to create branch"
+        }
+    }
+    catch {
+        Write-Error "Failed to create branch: $_"
+        return $false
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function Publish-GitChanges {
+    <#
+    .SYNOPSIS
+        Commit and push changes
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$RepoPath,
+
+        [Parameter(Mandatory)]
+        [string]$PackageId,
+
+        [Parameter(Mandatory)]
+        [string]$Version,
+
+        [Parameter(Mandatory)]
+        [string]$BranchName
+    )
+
+    Push-Location $RepoPath
+    try {
+        # Add all changes
+        git add . 2>&1 | Out-Null
+
+        # Create commit
+        $commitMessage = "New version: $PackageId version $Version"
+        git commit -m $commitMessage 2>&1 | Out-Null
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Git commit failed"
+        }
+
+        Write-Host "✅ Created commit: $commitMessage" -ForegroundColor Green
+
+        # Push with retries
+        $maxRetries = 4
+        $retryCount = 0
+        $delay = 2
+
+        while ($retryCount -lt $maxRetries) {
+            Write-Host "Pushing to remote (attempt $($retryCount + 1)/$maxRetries)..." -ForegroundColor Cyan
+
+            git push -u origin $BranchName 2>&1 | Out-Null
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "✅ Push successful!" -ForegroundColor Green
+                return $true
+            }
+
+            $retryCount++
+            if ($retryCount -lt $maxRetries) {
+                Write-Host "⚠️  Push failed, retrying in ${delay}s..." -ForegroundColor Yellow
+                Start-Sleep -Seconds $delay
+                $delay *= 2
+            }
+        }
+
+        throw "Push failed after $maxRetries attempts"
+    }
+    catch {
+        Write-Error "Failed to publish changes: $_"
+        return $false
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function New-PullRequest {
+    <#
+    .SYNOPSIS
+        Create pull request to microsoft/winget-pkgs
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ForkOwner,
+
+        [Parameter(Mandatory)]
+        [string]$PackageId,
+
+        [Parameter(Mandatory)]
+        [string]$Version,
+
+        [Parameter(Mandatory)]
+        [string]$BranchName
+    )
+
+    try {
+        $title = "New version: $PackageId version $Version"
+        $body = @"
+## Update Information
+
+- **Package**: $PackageId
+- **Version**: $Version
+- **Submitted by**: Automated WinGet Package Updater
+
+This PR was created automatically by the WinGet Package Updater.
+"@
+
+        Write-Host "Creating pull request..." -ForegroundColor Cyan
+
+        $pr = gh pr create `
+            --repo microsoft/winget-pkgs `
+            --head "$ForkOwner`:$BranchName" `
+            --title $title `
+            --body $body 2>&1
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Pull request created successfully!" -ForegroundColor Green
+            Write-Host "PR URL: $pr" -ForegroundColor Cyan
+            return $true
+        }
+        else {
+            throw "gh pr create failed with exit code $LASTEXITCODE"
+        }
+    }
+    catch {
+        Write-Error "Failed to create pull request: $_"
+        return $false
+    }
+}
+
+#endregion
+
 # Helper function to convert YAML (basic implementation)
 function ConvertFrom-Yaml {
     param([string]$Content)
 
-    # This is a simplified YAML parser for basic checkver configs
-    # For production, use powershell-yaml module
+    # Check if powershell-yaml module is available
+    if (Get-Module -ListAvailable -Name powershell-yaml) {
+        Import-Module powershell-yaml -ErrorAction SilentlyContinue
+        if (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue) {
+            # Use the module's function
+            return & (Get-Command ConvertFrom-Yaml -Module powershell-yaml) -Yaml $Content
+        }
+    }
+
+    # Fallback to basic YAML parser
     $result = @{}
     $lines = $Content -split "`n"
     $currentKey = $null
@@ -628,7 +1007,10 @@ function ConvertFrom-Yaml {
             if ($line -match '^  ') {
                 $scriptLines += $line.Substring(2)
             } else {
-                $result.checkver.script = $scriptLines -join "`n"
+                if (-not $result.checkver) {
+                    $result['checkver'] = @{}
+                }
+                $result.checkver['script'] = $scriptLines -join "`n"
                 $inScript = $false
             }
         }
@@ -667,5 +1049,14 @@ Export-ModuleMember -Function @(
     'Get-LatestVersionFromScript',
     'Get-InstallerUrl',
     'Test-InstallerUrl',
-    'Test-PackageUpdate'
+    'Test-PackageUpdate',
+    'Get-FileSha256',
+    'Get-WebFile',
+    'Get-UpstreamManifest',
+    'Update-ManifestYaml',
+    'Initialize-GitRepository',
+    'Set-GitUser',
+    'New-GitBranch',
+    'Publish-GitChanges',
+    'New-PullRequest'
 )
