@@ -85,7 +85,7 @@ jobs:
 
                 if (-not $shouldSkip) {
                   Write-Host "🚀 Updating manifest and creating PR..." -ForegroundColor Green
-                  pwsh -File scripts/Update-Manifest.ps1 "$($file.FullName)" "$packageId" "$version"
+                  pwsh -File scripts/Update-Manifest.ps1 "$($file.FullName)" "$packageId" "$version" -Validate
                 } else {
                   Write-Host "⏭️  Skipping update" -ForegroundColor Yellow
                 }

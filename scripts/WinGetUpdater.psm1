@@ -859,6 +859,72 @@ function Update-ManifestYaml {
     Set-Content -Path $FilePath -Value $content -NoNewline
 }
 
+function Test-ManifestWithWinget {
+    <#
+    .SYNOPSIS
+        Validate manifest files using winget (Windows only)
+
+    .DESCRIPTION
+        Uses winget validate to check manifest syntax and structure.
+        Requires winget to be installed and local manifest support enabled.
+
+    .PARAMETER ManifestDir
+        Path to directory containing manifest YAML files
+
+    .EXAMPLE
+        Test-ManifestWithWinget -ManifestDir "C:\temp\manifest-new-12345"
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ManifestDir
+    )
+
+    # Check if running on Windows
+    if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
+        Write-Warning "⚠️  Winget validation is only available on Windows"
+        Write-Host "Skipping winget validation..." -ForegroundColor Yellow
+        return $true
+    }
+
+    # Check if winget is available
+    $wingetPath = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $wingetPath) {
+        Write-Warning "⚠️  winget command not found"
+        Write-Host "Please install Windows Package Manager from: https://aka.ms/getwinget" -ForegroundColor Yellow
+        Write-Host "Skipping winget validation..." -ForegroundColor Yellow
+        return $true
+    }
+
+    try {
+        Write-Host "`nValidating manifest with winget..." -ForegroundColor Cyan
+
+        # Enable local manifest files if not already enabled
+        Write-Host "  Ensuring local manifest support is enabled..." -ForegroundColor Gray
+        $settingsOutput = winget settings --enable LocalManifestFiles 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to enable local manifest files. You may need to run as administrator."
+        }
+
+        # Run winget validate
+        Write-Host "  Running: winget validate --manifest `"$ManifestDir`"" -ForegroundColor Gray
+        $output = winget validate --manifest $ManifestDir 2>&1
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Manifest validation passed!" -ForegroundColor Green
+            return $true
+        } else {
+            Write-Error "❌ Manifest validation failed!"
+            Write-Host $output -ForegroundColor Red
+            return $false
+        }
+    }
+    catch {
+        Write-Error "Failed to validate manifest: $_"
+        return $false
+    }
+}
+
 #endregion
 
 #region GitHub API Operations
@@ -940,6 +1006,36 @@ function New-GitHubBlob {
     }
 }
 
+function Get-GitHubTreeFromCommit {
+    <#
+    .SYNOPSIS
+        Get tree SHA from a commit SHA
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ForkRepo,
+
+        [Parameter(Mandatory)]
+        [string]$CommitSha
+    )
+
+    try {
+        Write-Host "Getting tree SHA from commit..." -ForegroundColor Cyan
+        $commit = gh api "repos/$ForkRepo/git/commits/$CommitSha" 2>&1 | ConvertFrom-Json
+
+        if (-not $commit.tree.sha) {
+            throw "Failed to get tree SHA from commit"
+        }
+
+        Write-Host "  Tree SHA: $($commit.tree.sha)" -ForegroundColor Gray
+        return $commit.tree.sha
+    }
+    catch {
+        Write-Error "Failed to get tree SHA from commit: $_"
+        return $null
+    }
+}
+
 function New-GitHubTree {
     <#
     .SYNOPSIS
@@ -985,6 +1081,8 @@ function New-GitHubTree {
             base_tree = $BaseTreeSha
             tree = $treeEntries
         } | ConvertTo-Json -Depth 10
+
+        Write-Verbose "Tree payload: $payload"
 
         $tree = $payload | gh api "repos/$ForkRepo/git/trees" --input - 2>&1 | ConvertFrom-Json
 
@@ -1151,14 +1249,20 @@ function Publish-ManifestViaAPI {
 
         Write-Host "✅ Created $($fileBlobs.Count) blobs" -ForegroundColor Green
 
-        # Step 3: Create tree with the blobs
-        $treeSha = New-GitHubTree -ForkRepo $ForkRepo -BaseTreeSha $baseCommitSha -ManifestPath $ManifestPath -Version $Version -FileBlobs $fileBlobs
+        # Step 3: Get tree SHA from the base commit
+        $baseTreeSha = Get-GitHubTreeFromCommit -ForkRepo $ForkRepo -CommitSha $baseCommitSha
+        if (-not $baseTreeSha) {
+            throw "Failed to get tree SHA from commit"
+        }
+
+        # Step 4: Create tree with the blobs
+        $treeSha = New-GitHubTree -ForkRepo $ForkRepo -BaseTreeSha $baseTreeSha -ManifestPath $ManifestPath -Version $Version -FileBlobs $fileBlobs
 
         if (-not $treeSha) {
             throw "Failed to create tree"
         }
 
-        # Step 4: Create commit
+        # Step 5: Create commit
         $commitMessage = "New version: $PackageId version $Version"
         $commitSha = New-GitHubCommit -ForkRepo $ForkRepo -TreeSha $treeSha -ParentSha $baseCommitSha -Message $commitMessage
 
@@ -1166,7 +1270,7 @@ function Publish-ManifestViaAPI {
             throw "Failed to create commit"
         }
 
-        # Step 5: Create/update branch
+        # Step 6: Create/update branch
         if (-not (New-GitHubBranch -ForkRepo $ForkRepo -BranchName $BranchName -CommitSha $commitSha)) {
             throw "Failed to create branch"
         }
@@ -1324,7 +1428,9 @@ Export-ModuleMember -Function @(
     'Get-MsixSignatureSha256',
     'Get-UpstreamManifest',
     'Update-ManifestYaml',
+    'Test-ManifestWithWinget',
     'Get-GitHubDefaultBranch',
+    'Get-GitHubTreeFromCommit',
     'New-GitHubBlob',
     'New-GitHubTree',
     'New-GitHubCommit',
