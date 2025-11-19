@@ -866,7 +866,7 @@ function Update-ManifestYaml {
 function Initialize-GitRepository {
     <#
     .SYNOPSIS
-        Clone fork repository
+        Clone fork repository using blobless clone for minimal size
     #>
     param(
         [Parameter(Mandatory)]
@@ -882,15 +882,31 @@ function Initialize-GitRepository {
     try {
         $cloneUrl = "https://x-access-token:$Token@github.com/$ForkRepo.git"
         Write-Host "Cloning repository: $ForkRepo" -ForegroundColor Cyan
-        Write-Host "Using shallow clone (--depth 1) for faster cloning..." -ForegroundColor Gray
+        Write-Host "Using blobless clone (--filter=blob:none) for minimal transfer..." -ForegroundColor Gray
 
-        # Use shallow clone with --depth 1 for much faster cloning
-        # Also use --single-branch to only clone the default branch
-        $output = git clone --depth 1 --single-branch $cloneUrl $OutputPath 2>&1
+        # Configure git for better performance and reliability
+        Write-Host "Configuring git for optimized cloning..." -ForegroundColor Gray
+        git config --global core.compression 0 2>&1 | Out-Null
+        git config --global http.postBuffer 524288000 2>&1 | Out-Null
+        git config --global http.version HTTP/1.1 2>&1 | Out-Null
+
+        # Use blobless clone which only downloads trees and commits
+        # This is much faster than shallow clone for large repos
+        Write-Host "Initializing repository..." -ForegroundColor Cyan
+        git clone --filter=blob:none --depth 1 --single-branch --progress $cloneUrl $OutputPath 2>&1 | ForEach-Object {
+            $line = $_.ToString()
+            if ($line) {
+                Write-Host "  $line" -ForegroundColor Gray
+            }
+        }
 
         if ($LASTEXITCODE -ne 0) {
-            Write-Error "Git clone output: $output"
             throw "Git clone failed with exit code $LASTEXITCODE"
+        }
+
+        # Verify repository was cloned
+        if (-not (Test-Path (Join-Path $OutputPath ".git"))) {
+            throw "Repository clone completed but .git directory not found"
         }
 
         Write-Host "✅ Repository cloned successfully" -ForegroundColor Green
@@ -898,6 +914,18 @@ function Initialize-GitRepository {
     }
     catch {
         Write-Error "Failed to clone repository: $_"
+
+        # Cleanup on failure
+        if (Test-Path $OutputPath) {
+            try {
+                Write-Host "Cleaning up failed clone..." -ForegroundColor Yellow
+                Remove-Item $OutputPath -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            catch {
+                Write-Warning "Could not cleanup failed clone directory: $_"
+            }
+        }
+
         return $false
     }
 }
