@@ -4,7 +4,7 @@ WinGet Package Updater is a PowerShell-based automation tool that monitors softw
 
 ## Technology Stack
 
-- **PowerShell 7.5+** - Main automation language
+- **PowerShell 7.4+** - Main automation language
 - **GitHub Actions** - CI/CD platform
 - **GitHub CLI (gh)** - API interactions
 - **powershell-yaml** - YAML configuration parsing

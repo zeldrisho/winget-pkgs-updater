@@ -69,7 +69,7 @@ installerUrlTemplate: "https://example.com/{version}/installer.exe"
 ```
 
 **Features**:
-- Executes PowerShell 7.5+ script (30-second timeout)
+- Executes PowerShell 7.4+ script (30-second timeout)
 - Supports regex for version extraction
 - Can extract custom metadata via named groups
 
