@@ -6,10 +6,15 @@ This project is a PowerShell-based automation tool that monitors software packag
 
 All comprehensive documentation has been moved to the `docs/` directory:
 
+- **[docs/quick-start.md](../docs/quick-start.md)** - 5-minute setup guide for new users
 - **[docs/architecture.md](../docs/architecture.md)** - System architecture, design patterns, and module structure
 - **[docs/checkver-guide.md](../docs/checkver-guide.md)** - Complete checkver configuration reference with examples
 - **[docs/development.md](../docs/development.md)** - Developer guide, testing, and debugging
 - **[docs/contributing.md](../docs/contributing.md)** - Guide for adding new packages
+
+Additional documentation:
+- **[manifests/README.md](../manifests/README.md)** - Quick checkver reference (simplified)
+- **[.github/workflows/README.md](workflows/README.md)** - GitHub Actions workflow documentation
 
 ## Quick Reference
 
@@ -48,17 +53,23 @@ docs/
 
 ### When Users Ask...
 
+**"How do I get started?"** or **"How do I set this up?"**
+→ Refer to [docs/quick-start.md](../docs/quick-start.md)
+
 **"How does the system work?"**
 → Refer to [docs/architecture.md](../docs/architecture.md)
 
 **"How do I add a package?"** or **"How do I write a checkver config?"**
-→ Refer to [docs/contributing.md](../docs/contributing.md) and [docs/checkver-guide.md](../docs/checkver-guide.md)
+→ Refer to [docs/quick-start.md](../docs/quick-start.md) for basics, [docs/contributing.md](../docs/contributing.md) and [docs/checkver-guide.md](../docs/checkver-guide.md) for details
 
 **"How do I test locally?"** or **"How do I debug?"**
 → Refer to [docs/development.md](../docs/development.md)
 
 **"What fields are updated in manifests?"**
 → Refer to [docs/checkver-guide.md](../docs/checkver-guide.md#manifest-update-behavior)
+
+**"How do the workflows work?"** or **"How do I configure GitHub Actions?"**
+→ Refer to [.github/workflows/README.md](workflows/README.md)
 
 ### Important Implementation Notes
 

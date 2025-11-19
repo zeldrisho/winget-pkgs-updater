@@ -15,6 +15,8 @@ Automated tool to check for new package versions and create pull requests to [mi
 
 ## Quick Setup
 
+**New to this project?** → See [docs/quick-start.md](docs/quick-start.md) for a complete setup guide!
+
 ### 1. Fork Repositories
 
 - Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
@@ -40,15 +42,22 @@ In your forked repository:
 
 ## Adding Packages
 
-See [docs/contributing.md](docs/contributing.md) for detailed guide on adding new packages.
+See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contributing.md](docs/contributing.md) for detailed instructions.
 
 ## Documentation
 
-- [docs/architecture.md](docs/architecture.md) - System architecture and design
-- [docs/checkver-guide.md](docs/checkver-guide.md) - Checkver configuration reference
-- [docs/development.md](docs/development.md) - Developer guide and testing
-- [docs/contributing.md](docs/contributing.md) - How to add packages
-- [manifests/README.md](manifests/README.md) - Checkver configuration basics
+### Getting Started
+- **[docs/quick-start.md](docs/quick-start.md)** - 5-minute setup guide
+- **[docs/contributing.md](docs/contributing.md)** - How to add packages
+
+### Reference
+- **[docs/checkver-guide.md](docs/checkver-guide.md)** - Complete checkver configuration reference
+- **[docs/architecture.md](docs/architecture.md)** - System architecture and design
+- **[docs/development.md](docs/development.md)** - Developer guide and testing
+
+### Additional
+- **[manifests/README.md](manifests/README.md)** - Checkver quick reference
+- **[.github/workflows/README.md](.github/workflows/README.md)** - Workflow documentation
 
 ## How It Works
 
