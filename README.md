@@ -77,15 +77,15 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
      - Branch deleted → Continue (allow retry)
 
 #### Stage 3: Manifest Update
-6. **Clone fork** - Clone your winget-pkgs fork
-7. **Fetch manifests** - Copy latest version folder from upstream
-8. **Download installers** - Download files for hash calculation
-9. **Calculate hashes** - InstallerSha256 + SignatureSha256 (MSIX) + ProductCode (MSI)
-10. **Update manifests** - Smart field updates:
+6. **Fetch manifests** - Download latest version folder from upstream via API
+7. **Download installers** - Download files for hash calculation
+8. **Calculate hashes** - InstallerSha256 + SignatureSha256 (MSIX) + ProductCode (MSI)
+9. **Update manifests** - Smart field updates:
     - **Always updated**: PackageVersion, InstallerSha256, InstallerUrl
     - **Conditionally updated**: ProductCode, ReleaseDate, ReleaseNotes (if exist in old manifest)
     - **Preserved**: All other fields (Publisher, License, Tags, etc.)
-11. **Create PR** - Push to fork and open PR to microsoft/winget-pkgs
+10. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
+11. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
 
 ## PR Management
 
@@ -99,7 +99,6 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
 
 - PowerShell 7.4+
 - GitHub CLI (`gh`)
-- Git
 
 ### PowerShell Modules
 - `powershell-yaml` - Automatically installed by workflow
@@ -111,7 +110,7 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
 ✅ Installer download and SHA256 calculation
 ✅ Manifest fetching from microsoft/winget-pkgs
 ✅ YAML manifest updates with version replacement
-✅ Git operations (clone, branch, commit, push)
+✅ GitHub API-based commit creation (no repository cloning)
 ✅ Pull request creation
 ✅ ProductCode extraction from MSI files
 ✅ SignatureSha256 calculation for MSIX packages
