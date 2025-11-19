@@ -859,72 +859,6 @@ function Update-ManifestYaml {
     Set-Content -Path $FilePath -Value $content -NoNewline
 }
 
-function Test-ManifestWithWinget {
-    <#
-    .SYNOPSIS
-        Validate manifest files using winget (Windows only)
-
-    .DESCRIPTION
-        Uses winget validate to check manifest syntax and structure.
-        Requires winget to be installed and local manifest support enabled.
-
-    .PARAMETER ManifestDir
-        Path to directory containing manifest YAML files
-
-    .EXAMPLE
-        Test-ManifestWithWinget -ManifestDir "C:\temp\manifest-new-12345"
-    #>
-    param(
-        [Parameter(Mandatory)]
-        [string]$ManifestDir
-    )
-
-    # Check if running on Windows
-    if (-not $IsWindows -and $PSVersionTable.PSVersion.Major -ge 6) {
-        Write-Warning "⚠️  Winget validation is only available on Windows"
-        Write-Host "Skipping winget validation..." -ForegroundColor Yellow
-        return $true
-    }
-
-    # Check if winget is available
-    $wingetPath = Get-Command winget -ErrorAction SilentlyContinue
-    if (-not $wingetPath) {
-        Write-Warning "⚠️  winget command not found"
-        Write-Host "Please install Windows Package Manager from: https://aka.ms/getwinget" -ForegroundColor Yellow
-        Write-Host "Skipping winget validation..." -ForegroundColor Yellow
-        return $true
-    }
-
-    try {
-        Write-Host "`nValidating manifest with winget..." -ForegroundColor Cyan
-
-        # Enable local manifest files if not already enabled
-        Write-Host "  Ensuring local manifest support is enabled..." -ForegroundColor Gray
-        $settingsOutput = winget settings --enable LocalManifestFiles 2>&1
-
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to enable local manifest files. You may need to run as administrator."
-        }
-
-        # Run winget validate
-        Write-Host "  Running: winget validate --manifest `"$ManifestDir`"" -ForegroundColor Gray
-        $output = winget validate --manifest $ManifestDir 2>&1
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "✅ Manifest validation passed!" -ForegroundColor Green
-            return $true
-        } else {
-            Write-Error "❌ Manifest validation failed!"
-            Write-Host $output -ForegroundColor Red
-            return $false
-        }
-    }
-    catch {
-        Write-Error "Failed to validate manifest: $_"
-        return $false
-    }
-}
-
 #endregion
 
 #region GitHub API Operations
@@ -1428,7 +1362,6 @@ Export-ModuleMember -Function @(
     'Get-MsixSignatureSha256',
     'Get-UpstreamManifest',
     'Update-ManifestYaml',
-    'Test-ManifestWithWinget',
     'Get-GitHubDefaultBranch',
     'Get-GitHubTreeFromCommit',
     'New-GitHubBlob',
