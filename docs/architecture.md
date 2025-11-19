@@ -39,14 +39,26 @@ Prevents duplicate pull requests by checking:
 
 ### Stage 3: Manifest Update
 
-1. Clone fork of microsoft/winget-pkgs
-2. Fetch existing manifests for latest version
-3. Download installers and calculate SHA256 hashes (supports multi-arch)
-4. Extract ProductCode from MSI files (if applicable)
-5. Copy manifest folder and apply updates
-6. Create branch, commit, push to fork, open PR
+1. Fetch existing manifests for latest version via GitHub API
+2. Download installers and calculate SHA256 hashes (supports multi-arch)
+3. Extract ProductCode from MSI files (if applicable)
+4. Copy manifest folder and apply updates in temp directory
+5. Create commit and branch directly via GitHub API (no cloning)
+6. Create pull request to microsoft/winget-pkgs
 
-**Strategy**: Copy entire manifest folder → selective field updates → global version string replacement
+**Strategy**: API-based workflow eliminates repository cloning:
+- Fetch default branch SHA from fork via API
+- Create blobs for each updated manifest file
+- Create git tree with blob references
+- Create commit pointing to new tree
+- Create/update branch reference
+- Uses GitHub's Git Database API for all git operations
+
+**Benefits**:
+- Much faster than cloning (seconds vs minutes)
+- No network timeouts from large repository downloads
+- Minimal bandwidth usage (only modified files transferred)
+- More reliable in CI/CD environments
 
 ## Module Structure
 

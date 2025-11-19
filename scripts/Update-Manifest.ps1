@@ -6,7 +6,7 @@
 
 .DESCRIPTION
     Fetches existing manifest from microsoft/winget-pkgs, updates it with new version and hashes,
-    and creates a pull request
+    and creates a pull request using GitHub API (no repository cloning required)
 
 .PARAMETER CheckverPath
     Path to checkver config file
@@ -19,9 +19,6 @@
 
 .PARAMETER NoPR
     Update manifests without creating PR (for testing)
-
-.PARAMETER ForkPath
-    Path to existing fork clone (for testing)
 
 .EXAMPLE
     ./Update-Manifest.ps1 manifests/Microsoft.PowerShell.checkver.yaml Microsoft.PowerShell 7.5.4.0
@@ -37,9 +34,7 @@ param(
     [Parameter(Position=2)]
     [string]$Version,
 
-    [switch]$NoPR,
-
-    [string]$ForkPath
+    [switch]$NoPR
 )
 
 $ErrorActionPreference = 'Stop'
@@ -133,35 +128,9 @@ try {
 
     Write-Host "Latest version in upstream: $latestVersion" -ForegroundColor Green
 
-    # Create or use fork path
-    $tempDir = $null
-    $repoDir = $null
-
-    if ($ForkPath) {
-        $repoDir = $ForkPath
-        Write-Host "`nUsing existing fork at: $repoDir" -ForegroundColor Cyan
-    } else {
-        $tempDir = New-Item -ItemType Directory -Path (Join-Path $env:TEMP "winget-pkgs-$(Get-Random)") -Force
-        $repoDir = Join-Path $tempDir "winget-pkgs"
-
-        Write-Host "`nCloning fork repository..." -ForegroundColor Cyan
-        if (-not (Initialize-GitRepository -ForkRepo $forkRepo -OutputPath $repoDir -Token $token)) {
-            throw "Failed to clone repository"
-        }
-    }
-
-    # Configure git user
-    Write-Host "`nConfiguring Git user..." -ForegroundColor Cyan
-    if (-not (Set-GitUser -RepoPath $repoDir)) {
-        throw "Failed to configure git user"
-    }
-
-    # Create branch
+    # Create branch name
     $branchName = "$PackageId-$Version"
-    Write-Host "`nCreating branch: $branchName" -ForegroundColor Cyan
-    if (-not (New-GitBranch -RepoPath $repoDir -BranchName $branchName)) {
-        throw "Failed to create branch"
-    }
+    Write-Host "`nBranch name: $branchName" -ForegroundColor Cyan
 
     # Fetch template manifest from upstream
     $templateDir = Join-Path $env:TEMP "manifest-template-$(Get-Random)"
@@ -171,8 +140,8 @@ try {
         throw "Failed to fetch template manifest"
     }
 
-    # Create new version directory in repo
-    $newVersionDir = Join-Path $repoDir "$manifestPath/$Version"
+    # Create new version directory for manifests
+    $newVersionDir = Join-Path $env:TEMP "manifest-new-$(Get-Random)"
     Write-Host "`nCreating new version directory..." -ForegroundColor Cyan
     New-Item -ItemType Directory -Path $newVersionDir -Force | Out-Null
 
@@ -238,10 +207,10 @@ try {
     # Cleanup template directory
     Remove-Item $templateDir -Recurse -Force
 
-    # Commit and push changes
-    Write-Host "`nCommitting changes..." -ForegroundColor Cyan
-    if (-not (Publish-GitChanges -RepoPath $repoDir -PackageId $PackageId -Version $Version -BranchName $branchName)) {
-        throw "Failed to publish changes"
+    # Publish manifest via GitHub API
+    Write-Host "`nPublishing manifest..." -ForegroundColor Cyan
+    if (-not (Publish-ManifestViaAPI -ForkRepo $forkRepo -ManifestPath $manifestPath -Version $Version -ManifestDir $newVersionDir -PackageId $PackageId -BranchName $branchName)) {
+        throw "Failed to publish manifest"
     }
 
     # Create PR unless --NoPR
@@ -257,9 +226,7 @@ try {
     }
 
     # Cleanup temp directory
-    if ($tempDir) {
-        Remove-Item $tempDir -Recurse -Force
-    }
+    Remove-Item $newVersionDir -Recurse -Force -ErrorAction SilentlyContinue
 
     Write-Host "`n✅ Update completed successfully!" -ForegroundColor Green
 }

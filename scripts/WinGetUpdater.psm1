@@ -861,207 +861,322 @@ function Update-ManifestYaml {
 
 #endregion
 
-#region Git Operations
+#region GitHub API Operations
 
-function Initialize-GitRepository {
+function Get-GitHubDefaultBranch {
     <#
     .SYNOPSIS
-        Clone fork repository using blobless clone for minimal size
+        Get default branch and latest commit SHA from fork repository
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ForkRepo
+    )
+
+    try {
+        Write-Host "Fetching default branch from: $ForkRepo" -ForegroundColor Cyan
+
+        $repo = gh api "repos/$ForkRepo" 2>&1 | ConvertFrom-Json
+
+        if (-not $repo) {
+            throw "Failed to fetch repository information"
+        }
+
+        $defaultBranch = $repo.default_branch
+        Write-Host "  Default branch: $defaultBranch" -ForegroundColor Gray
+
+        # Get the latest commit SHA from the default branch
+        $ref = gh api "repos/$ForkRepo/git/refs/heads/$defaultBranch" 2>&1 | ConvertFrom-Json
+        $commitSha = $ref.object.sha
+
+        Write-Host "  Latest commit: $commitSha" -ForegroundColor Gray
+        Write-Host "✅ Retrieved default branch information" -ForegroundColor Green
+
+        return @{
+            Branch = $defaultBranch
+            CommitSha = $commitSha
+        }
+    }
+    catch {
+        Write-Error "Failed to get default branch: $_"
+        return $null
+    }
+}
+
+function New-GitHubBlob {
+    <#
+    .SYNOPSIS
+        Create a blob in GitHub repository
     #>
     param(
         [Parameter(Mandatory)]
         [string]$ForkRepo,
 
         [Parameter(Mandatory)]
-        [string]$OutputPath,
-
-        [Parameter(Mandatory)]
-        [string]$Token
+        [string]$FilePath
     )
 
     try {
-        $cloneUrl = "https://x-access-token:$Token@github.com/$ForkRepo.git"
-        Write-Host "Cloning repository: $ForkRepo" -ForegroundColor Cyan
-        Write-Host "Using blobless clone (--filter=blob:none) for minimal transfer..." -ForegroundColor Gray
+        $content = Get-Content -Path $FilePath -Raw
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($content)
+        $base64 = [Convert]::ToBase64String($bytes)
 
-        # Configure git for better performance and reliability
-        Write-Host "Configuring git for optimized cloning..." -ForegroundColor Gray
-        git config --global core.compression 0 2>&1 | Out-Null
-        git config --global http.postBuffer 524288000 2>&1 | Out-Null
-        git config --global http.version HTTP/1.1 2>&1 | Out-Null
+        $payload = @{
+            content = $base64
+            encoding = "base64"
+        } | ConvertTo-Json
 
-        # Use blobless clone which only downloads trees and commits
-        # This is much faster than shallow clone for large repos
-        Write-Host "Initializing repository..." -ForegroundColor Cyan
-        git clone --filter=blob:none --depth 1 --single-branch --progress $cloneUrl $OutputPath 2>&1 | ForEach-Object {
-            $line = $_.ToString()
-            if ($line) {
-                Write-Host "  $line" -ForegroundColor Gray
-            }
+        $blob = $payload | gh api "repos/$ForkRepo/git/blobs" --input - 2>&1 | ConvertFrom-Json
+
+        if (-not $blob.sha) {
+            throw "Failed to create blob"
         }
 
-        if ($LASTEXITCODE -ne 0) {
-            throw "Git clone failed with exit code $LASTEXITCODE"
-        }
-
-        # Verify repository was cloned
-        if (-not (Test-Path (Join-Path $OutputPath ".git"))) {
-            throw "Repository clone completed but .git directory not found"
-        }
-
-        Write-Host "✅ Repository cloned successfully" -ForegroundColor Green
-        return $true
+        return $blob.sha
     }
     catch {
-        Write-Error "Failed to clone repository: $_"
-
-        # Cleanup on failure
-        if (Test-Path $OutputPath) {
-            try {
-                Write-Host "Cleaning up failed clone..." -ForegroundColor Yellow
-                Remove-Item $OutputPath -Recurse -Force -ErrorAction SilentlyContinue
-            }
-            catch {
-                Write-Warning "Could not cleanup failed clone directory: $_"
-            }
-        }
-
-        return $false
+        Write-Error "Failed to create blob for ${FilePath}: $_"
+        return $null
     }
 }
 
-function Set-GitUser {
+function New-GitHubTree {
     <#
     .SYNOPSIS
-        Configure git user from GitHub API
+        Create a tree in GitHub repository with manifest files
     #>
     param(
         [Parameter(Mandatory)]
-        [string]$RepoPath
-    )
-
-    Push-Location $RepoPath
-    try {
-        $userInfo = gh api user | ConvertFrom-Json
-        $gitName = if ($userInfo.name) { $userInfo.name } else { $userInfo.login }
-        $userId = $userInfo.id
-        $userLogin = $userInfo.login
-        $gitEmail = "$userId+$userLogin@users.noreply.github.com"
-
-        git config user.name $gitName
-        git config user.email $gitEmail
-
-        Write-Host "✅ Configured Git: $gitName <$gitEmail>" -ForegroundColor Green
-        return $true
-    }
-    catch {
-        Write-Error "Failed to configure git user: $_"
-        return $false
-    }
-    finally {
-        Pop-Location
-    }
-}
-
-function New-GitBranch {
-    <#
-    .SYNOPSIS
-        Create and checkout new branch
-    #>
-    param(
-        [Parameter(Mandatory)]
-        [string]$RepoPath,
+        [string]$ForkRepo,
 
         [Parameter(Mandatory)]
-        [string]$BranchName
-    )
-
-    Push-Location $RepoPath
-    try {
-        git checkout -b $BranchName 2>&1 | Out-Null
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "✅ Created branch: $BranchName" -ForegroundColor Green
-            return $true
-        }
-        else {
-            throw "Failed to create branch"
-        }
-    }
-    catch {
-        Write-Error "Failed to create branch: $_"
-        return $false
-    }
-    finally {
-        Pop-Location
-    }
-}
-
-function Publish-GitChanges {
-    <#
-    .SYNOPSIS
-        Commit and push changes
-    #>
-    param(
-        [Parameter(Mandatory)]
-        [string]$RepoPath,
+        [string]$BaseTreeSha,
 
         [Parameter(Mandatory)]
-        [string]$PackageId,
+        [string]$ManifestPath,
 
         [Parameter(Mandatory)]
         [string]$Version,
 
         [Parameter(Mandatory)]
+        [hashtable]$FileBlobs
+    )
+
+    try {
+        Write-Host "Creating git tree..." -ForegroundColor Cyan
+
+        # Build tree entries for each manifest file
+        $treeEntries = @()
+        foreach ($fileName in $FileBlobs.Keys) {
+            $blobSha = $FileBlobs[$fileName]
+            $path = "$ManifestPath/$Version/$fileName"
+
+            $treeEntries += @{
+                path = $path
+                mode = "100644"
+                type = "blob"
+                sha = $blobSha
+            }
+
+            Write-Host "  Added: $path" -ForegroundColor Gray
+        }
+
+        $payload = @{
+            base_tree = $BaseTreeSha
+            tree = $treeEntries
+        } | ConvertTo-Json -Depth 10
+
+        $tree = $payload | gh api "repos/$ForkRepo/git/trees" --input - 2>&1 | ConvertFrom-Json
+
+        if (-not $tree.sha) {
+            throw "Failed to create tree"
+        }
+
+        Write-Host "✅ Tree created: $($tree.sha)" -ForegroundColor Green
+        return $tree.sha
+    }
+    catch {
+        Write-Error "Failed to create tree: $_"
+        return $null
+    }
+}
+
+function New-GitHubCommit {
+    <#
+    .SYNOPSIS
+        Create a commit in GitHub repository
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ForkRepo,
+
+        [Parameter(Mandatory)]
+        [string]$TreeSha,
+
+        [Parameter(Mandatory)]
+        [string]$ParentSha,
+
+        [Parameter(Mandatory)]
+        [string]$Message
+    )
+
+    try {
+        Write-Host "Creating commit..." -ForegroundColor Cyan
+
+        $payload = @{
+            message = $Message
+            tree = $TreeSha
+            parents = @($ParentSha)
+        } | ConvertTo-Json
+
+        $commit = $payload | gh api "repos/$ForkRepo/git/commits" --input - 2>&1 | ConvertFrom-Json
+
+        if (-not $commit.sha) {
+            throw "Failed to create commit"
+        }
+
+        Write-Host "✅ Commit created: $($commit.sha)" -ForegroundColor Green
+        Write-Host "  Message: $Message" -ForegroundColor Gray
+        return $commit.sha
+    }
+    catch {
+        Write-Error "Failed to create commit: $_"
+        return $null
+    }
+}
+
+function New-GitHubBranch {
+    <#
+    .SYNOPSIS
+        Create or update a branch reference in GitHub repository
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ForkRepo,
+
+        [Parameter(Mandatory)]
+        [string]$BranchName,
+
+        [Parameter(Mandatory)]
+        [string]$CommitSha
+    )
+
+    try {
+        Write-Host "Creating branch: $BranchName" -ForegroundColor Cyan
+
+        # Try to create new branch first
+        $payload = @{
+            ref = "refs/heads/$BranchName"
+            sha = $CommitSha
+        } | ConvertTo-Json
+
+        $result = $payload | gh api "repos/$ForkRepo/git/refs" --input - 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            # Branch might already exist, try to update it
+            Write-Host "  Branch exists, updating..." -ForegroundColor Gray
+
+            $updatePayload = @{
+                sha = $CommitSha
+                force = $true
+            } | ConvertTo-Json
+
+            $result = $updatePayload | gh api "repos/$ForkRepo/git/refs/heads/$BranchName" -X PATCH --input - 2>&1
+
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to update branch"
+            }
+        }
+
+        Write-Host "✅ Branch created/updated: $BranchName" -ForegroundColor Green
+        return $true
+    }
+    catch {
+        Write-Error "Failed to create/update branch: $_"
+        return $false
+    }
+}
+
+function Publish-ManifestViaAPI {
+    <#
+    .SYNOPSIS
+        Publish manifest files directly via GitHub API without cloning
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ForkRepo,
+
+        [Parameter(Mandatory)]
+        [string]$ManifestPath,
+
+        [Parameter(Mandatory)]
+        [string]$Version,
+
+        [Parameter(Mandatory)]
+        [string]$ManifestDir,
+
+        [Parameter(Mandatory)]
+        [string]$PackageId,
+
+        [Parameter(Mandatory)]
         [string]$BranchName
     )
 
-    Push-Location $RepoPath
     try {
-        # Add all changes
-        git add . 2>&1 | Out-Null
+        # Step 1: Get default branch and base commit
+        Write-Host "`nPreparing to publish via GitHub API..." -ForegroundColor Cyan
+        $branchInfo = Get-GitHubDefaultBranch -ForkRepo $ForkRepo
+        if (-not $branchInfo) {
+            throw "Failed to get default branch information"
+        }
 
-        # Create commit
+        $baseCommitSha = $branchInfo.CommitSha
+
+        # Step 2: Create blobs for each manifest file
+        Write-Host "`nCreating blobs for manifest files..." -ForegroundColor Cyan
+        $manifestFiles = Get-ChildItem -Path $ManifestDir -Filter "*.yaml"
+        $fileBlobs = @{}
+
+        foreach ($file in $manifestFiles) {
+            Write-Host "  Processing: $($file.Name)" -ForegroundColor Gray
+            $blobSha = New-GitHubBlob -ForkRepo $ForkRepo -FilePath $file.FullName
+
+            if (-not $blobSha) {
+                throw "Failed to create blob for $($file.Name)"
+            }
+
+            $fileBlobs[$file.Name] = $blobSha
+            Write-Host "    Blob SHA: $blobSha" -ForegroundColor DarkGray
+        }
+
+        Write-Host "✅ Created $($fileBlobs.Count) blobs" -ForegroundColor Green
+
+        # Step 3: Create tree with the blobs
+        $treeSha = New-GitHubTree -ForkRepo $ForkRepo -BaseTreeSha $baseCommitSha -ManifestPath $ManifestPath -Version $Version -FileBlobs $fileBlobs
+
+        if (-not $treeSha) {
+            throw "Failed to create tree"
+        }
+
+        # Step 4: Create commit
         $commitMessage = "New version: $PackageId version $Version"
-        git commit -m $commitMessage 2>&1 | Out-Null
+        $commitSha = New-GitHubCommit -ForkRepo $ForkRepo -TreeSha $treeSha -ParentSha $baseCommitSha -Message $commitMessage
 
-        if ($LASTEXITCODE -ne 0) {
-            throw "Git commit failed"
+        if (-not $commitSha) {
+            throw "Failed to create commit"
         }
 
-        Write-Host "✅ Created commit: $commitMessage" -ForegroundColor Green
-
-        # Push with retries
-        $maxRetries = 4
-        $retryCount = 0
-        $delay = 2
-
-        while ($retryCount -lt $maxRetries) {
-            Write-Host "Pushing to remote (attempt $($retryCount + 1)/$maxRetries)..." -ForegroundColor Cyan
-
-            git push -u origin $BranchName 2>&1 | Out-Null
-
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ Push successful!" -ForegroundColor Green
-                return $true
-            }
-
-            $retryCount++
-            if ($retryCount -lt $maxRetries) {
-                Write-Host "⚠️  Push failed, retrying in ${delay}s..." -ForegroundColor Yellow
-                Start-Sleep -Seconds $delay
-                $delay *= 2
-            }
+        # Step 5: Create/update branch
+        if (-not (New-GitHubBranch -ForkRepo $ForkRepo -BranchName $BranchName -CommitSha $commitSha)) {
+            throw "Failed to create branch"
         }
 
-        throw "Push failed after $maxRetries attempts"
+        Write-Host "`n✅ Successfully published manifest via API!" -ForegroundColor Green
+        return $true
     }
     catch {
-        Write-Error "Failed to publish changes: $_"
+        Write-Error "Failed to publish manifest via API: $_"
         return $false
-    }
-    finally {
-        Pop-Location
     }
 }
 
@@ -1209,9 +1324,11 @@ Export-ModuleMember -Function @(
     'Get-MsixSignatureSha256',
     'Get-UpstreamManifest',
     'Update-ManifestYaml',
-    'Initialize-GitRepository',
-    'Set-GitUser',
-    'New-GitBranch',
-    'Publish-GitChanges',
+    'Get-GitHubDefaultBranch',
+    'New-GitHubBlob',
+    'New-GitHubTree',
+    'New-GitHubCommit',
+    'New-GitHubBranch',
+    'Publish-ManifestViaAPI',
     'New-PullRequest'
 )
