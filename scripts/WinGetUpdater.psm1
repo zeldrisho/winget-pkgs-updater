@@ -876,7 +876,13 @@ function Get-GitHubDefaultBranch {
     try {
         Write-Host "Fetching default branch from: $ForkRepo" -ForegroundColor Cyan
 
-        $repo = gh api "repos/$ForkRepo" 2>&1 | ConvertFrom-Json
+        $repoOutput = gh api "repos/$ForkRepo" 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "GitHub API call failed with exit code $LASTEXITCODE. Output: $repoOutput"
+        }
+
+        $repo = $repoOutput | ConvertFrom-Json
 
         if (-not $repo) {
             throw "Failed to fetch repository information"
@@ -886,7 +892,13 @@ function Get-GitHubDefaultBranch {
         Write-Host "  Default branch: $defaultBranch" -ForegroundColor Gray
 
         # Get the latest commit SHA from the default branch
-        $ref = gh api "repos/$ForkRepo/git/refs/heads/$defaultBranch" 2>&1 | ConvertFrom-Json
+        $refOutput = gh api "repos/$ForkRepo/git/refs/heads/$defaultBranch" 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "GitHub API call for branch reference failed with exit code $LASTEXITCODE. Output: $refOutput"
+        }
+
+        $ref = $refOutput | ConvertFrom-Json
         $commitSha = $ref.object.sha
 
         Write-Host "  Latest commit: $commitSha" -ForegroundColor Gray
@@ -917,7 +929,15 @@ function New-GitHubBlob {
     )
 
     try {
+        if (-not (Test-Path $FilePath)) {
+            throw "File not found: $FilePath"
+        }
+
         $content = Get-Content -Path $FilePath -Raw
+        if ([string]::IsNullOrEmpty($content)) {
+            throw "File is empty: $FilePath"
+        }
+
         $bytes = [System.Text.Encoding]::UTF8.GetBytes($content)
         $base64 = [Convert]::ToBase64String($bytes)
 
@@ -926,13 +946,27 @@ function New-GitHubBlob {
             encoding = "base64"
         } | ConvertTo-Json
 
-        $blob = $payload | gh api "repos/$ForkRepo/git/blobs" --input - 2>&1 | ConvertFrom-Json
+        # Use temp file to avoid pipeline issues
+        $tempFile = [System.IO.Path]::GetTempFileName()
+        try {
+            $payload | Set-Content -Path $tempFile -NoNewline
+            $output = gh api "repos/$ForkRepo/git/blobs" --input $tempFile 2>&1
 
-        if (-not $blob.sha) {
-            throw "Failed to create blob"
+            if ($LASTEXITCODE -ne 0) {
+                throw "GitHub API call failed with exit code $LASTEXITCODE. Output: $output"
+            }
+
+            $blob = $output | ConvertFrom-Json
+
+            if (-not $blob.sha) {
+                throw "Blob creation succeeded but no SHA returned. Response: $output"
+            }
+
+            return $blob.sha
         }
-
-        return $blob.sha
+        finally {
+            Remove-Item -Path $tempFile -Force -ErrorAction SilentlyContinue
+        }
     }
     catch {
         Write-Error "Failed to create blob for ${FilePath}: $_"
@@ -955,10 +989,16 @@ function Get-GitHubTreeFromCommit {
 
     try {
         Write-Host "Getting tree SHA from commit..." -ForegroundColor Cyan
-        $commit = gh api "repos/$ForkRepo/git/commits/$CommitSha" 2>&1 | ConvertFrom-Json
+        $output = gh api "repos/$ForkRepo/git/commits/$CommitSha" 2>&1
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "GitHub API call failed with exit code $LASTEXITCODE. Output: $output"
+        }
+
+        $commit = $output | ConvertFrom-Json
 
         if (-not $commit.tree.sha) {
-            throw "Failed to get tree SHA from commit"
+            throw "Commit retrieved but no tree SHA found. Response: $output"
         }
 
         Write-Host "  Tree SHA: $($commit.tree.sha)" -ForegroundColor Gray
@@ -995,6 +1035,11 @@ function New-GitHubTree {
     try {
         Write-Host "Creating git tree..." -ForegroundColor Cyan
 
+        # Validate we have blobs to create
+        if ($FileBlobs.Count -eq 0) {
+            throw "No file blobs provided. Cannot create an empty tree."
+        }
+
         # Build tree entries for each manifest file
         $treeEntries = @()
         foreach ($fileName in $FileBlobs.Keys) {
@@ -1018,14 +1063,28 @@ function New-GitHubTree {
 
         Write-Verbose "Tree payload: $payload"
 
-        $tree = $payload | gh api "repos/$ForkRepo/git/trees" --input - 2>&1 | ConvertFrom-Json
+        # Call GitHub API and capture output properly
+        $tempFile = [System.IO.Path]::GetTempFileName()
+        try {
+            $payload | Set-Content -Path $tempFile -NoNewline
+            $output = gh api "repos/$ForkRepo/git/trees" --input $tempFile 2>&1
 
-        if (-not $tree.sha) {
-            throw "Failed to create tree"
+            if ($LASTEXITCODE -ne 0) {
+                throw "GitHub API call failed with exit code $LASTEXITCODE. Output: $output"
+            }
+
+            $tree = $output | ConvertFrom-Json
+
+            if (-not $tree.sha) {
+                throw "Tree creation succeeded but no SHA returned. Response: $output"
+            }
+
+            Write-Host "✅ Tree created: $($tree.sha)" -ForegroundColor Green
+            return $tree.sha
         }
-
-        Write-Host "✅ Tree created: $($tree.sha)" -ForegroundColor Green
-        return $tree.sha
+        finally {
+            Remove-Item -Path $tempFile -Force -ErrorAction SilentlyContinue
+        }
     }
     catch {
         Write-Error "Failed to create tree: $_"
@@ -1061,15 +1120,29 @@ function New-GitHubCommit {
             parents = @($ParentSha)
         } | ConvertTo-Json
 
-        $commit = $payload | gh api "repos/$ForkRepo/git/commits" --input - 2>&1 | ConvertFrom-Json
+        # Use temp file to avoid pipeline issues
+        $tempFile = [System.IO.Path]::GetTempFileName()
+        try {
+            $payload | Set-Content -Path $tempFile -NoNewline
+            $output = gh api "repos/$ForkRepo/git/commits" --input $tempFile 2>&1
 
-        if (-not $commit.sha) {
-            throw "Failed to create commit"
+            if ($LASTEXITCODE -ne 0) {
+                throw "GitHub API call failed with exit code $LASTEXITCODE. Output: $output"
+            }
+
+            $commit = $output | ConvertFrom-Json
+
+            if (-not $commit.sha) {
+                throw "Commit creation succeeded but no SHA returned. Response: $output"
+            }
+
+            Write-Host "✅ Commit created: $($commit.sha)" -ForegroundColor Green
+            Write-Host "  Message: $Message" -ForegroundColor Gray
+            return $commit.sha
         }
-
-        Write-Host "✅ Commit created: $($commit.sha)" -ForegroundColor Green
-        Write-Host "  Message: $Message" -ForegroundColor Gray
-        return $commit.sha
+        finally {
+            Remove-Item -Path $tempFile -Force -ErrorAction SilentlyContinue
+        }
     }
     catch {
         Write-Error "Failed to create commit: $_"
@@ -1166,7 +1239,14 @@ function Publish-ManifestViaAPI {
 
         # Step 2: Create blobs for each manifest file
         Write-Host "`nCreating blobs for manifest files..." -ForegroundColor Cyan
-        $manifestFiles = Get-ChildItem -Path $ManifestDir -Filter "*.yaml"
+        $manifestFiles = Get-ChildItem -Path $ManifestDir -Filter "*.yaml" -ErrorAction Stop
+
+        if ($manifestFiles.Count -eq 0) {
+            throw "No YAML manifest files found in directory: $ManifestDir"
+        }
+
+        Write-Host "  Found $($manifestFiles.Count) manifest file(s)" -ForegroundColor Gray
+
         $fileBlobs = @{}
 
         foreach ($file in $manifestFiles) {
