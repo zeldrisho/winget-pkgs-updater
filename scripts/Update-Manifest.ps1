@@ -20,8 +20,14 @@
 .PARAMETER NoPR
     Update manifests without creating PR (for testing)
 
+.PARAMETER Validate
+    Validate manifests with winget before publishing (Windows only)
+
 .EXAMPLE
     ./Update-Manifest.ps1 manifests/Microsoft.PowerShell.checkver.yaml Microsoft.PowerShell 7.5.4.0
+
+.EXAMPLE
+    ./Update-Manifest.ps1 manifests/Microsoft.PowerShell.checkver.yaml Microsoft.PowerShell 7.5.4.0 -Validate
 #>
 
 param(
@@ -34,7 +40,9 @@ param(
     [Parameter(Position=2)]
     [string]$Version,
 
-    [switch]$NoPR
+    [switch]$NoPR,
+
+    [switch]$Validate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -206,6 +214,14 @@ try {
 
     # Cleanup template directory
     Remove-Item $templateDir -Recurse -Force
+
+    # Validate manifest with winget if requested
+    if ($Validate) {
+        Write-Host "`nValidating manifest..." -ForegroundColor Cyan
+        if (-not (Test-ManifestWithWinget -ManifestDir $newVersionDir)) {
+            throw "Manifest validation failed"
+        }
+    }
 
     # Publish manifest via GitHub API
     Write-Host "`nPublishing manifest..." -ForegroundColor Cyan
