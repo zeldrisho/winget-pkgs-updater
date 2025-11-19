@@ -19,7 +19,7 @@ Additional documentation:
 ## Quick Reference
 
 ### Technology Stack
-- PowerShell 7.5+
+- PowerShell 7.4+
 - GitHub Actions (Windows runners)
 - GitHub CLI (`gh`)
 - powershell-yaml module

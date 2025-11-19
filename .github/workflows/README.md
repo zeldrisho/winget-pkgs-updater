@@ -20,7 +20,7 @@ This directory contains GitHub Actions workflows for automating package updates.
 5. Updates manifest files
 6. Creates pull requests to microsoft/winget-pkgs
 
-**Runner:** Windows (for PowerShell 7.5+ compatibility)
+**Runner:** Windows (for PowerShell 7.4+ compatibility)
 
 **Environment variables:**
 - `GITHUB_TOKEN` or `GH_TOKEN` - GitHub token (required)
@@ -105,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest  # Change from windows-latest
 ```
 
-Note: Requires PowerShell 7.5+ to be installed on runner.
+Note: Requires PowerShell 7.4+ to be installed on runner.
 
 ### Add Notifications
 

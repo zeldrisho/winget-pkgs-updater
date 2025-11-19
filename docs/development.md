@@ -4,7 +4,7 @@ Guide for developers working on WinGet Package Updater.
 
 ## Prerequisites
 
-- **PowerShell 7.5+** - Download from [PowerShell releases](https://github.com/PowerShell/PowerShell/releases)
+- **PowerShell 7.4+** - Download from [PowerShell releases](https://github.com/PowerShell/PowerShell/releases)
 - **GitHub CLI (gh)** - Install from [GitHub CLI](https://cli.github.com/)
 - **Git** - For version control
 - **powershell-yaml** module - Installed automatically by workflows
@@ -197,7 +197,7 @@ Before submitting changes:
 
 ### PowerShell Version Mismatch
 
-Ensure you're using PowerShell 7.5+:
+Ensure you're using PowerShell 7.4+:
 ```powershell
 $PSVersionTable.PSVersion
 ```

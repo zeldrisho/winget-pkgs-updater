@@ -4,7 +4,7 @@ Get started with WinGet Package Updater in minutes.
 
 ## Prerequisites
 
-- PowerShell 7.5+
+- PowerShell 7.4+
 - GitHub CLI (`gh`)
 - Git
 

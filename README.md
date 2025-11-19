@@ -97,7 +97,7 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
 
 ## Requirements
 
-- PowerShell 7.5+
+- PowerShell 7.4+
 - GitHub CLI (`gh`)
 - Git
 
@@ -137,7 +137,7 @@ Exit codes:
 
 ### Prerequisites
 
-1. Install PowerShell 7.5+:
+1. Install PowerShell 7.4+:
    ```bash
    # Windows (winget)
    winget install Microsoft.PowerShell
