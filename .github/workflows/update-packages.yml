@@ -2,7 +2,7 @@ name: Update WinGet Packages
 
 on:
   schedule:
-    # run every 4 hours
+    # Run every 4 hours
     - cron: '20 */4 * * *'
   workflow_dispatch:
     inputs:
@@ -13,207 +13,96 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write  # For creating PRs via gh CLI
+  pull-requests: write
 
 jobs:
-  check-versions:
-    name: Check for updates
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.check-updates.outputs.matrix }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Setup environment
-        uses: ./.github/actions/setup-environment
-      
-      - name: Find checkver files
-        id: find-checkver
-        run: |
-          if [ -n "${{ github.event.inputs.package }}" ]; then
-            files=$(find manifests -name "${{ github.event.inputs.package }}.checkver.yaml")
-          else
-            files=$(find manifests -name "*.checkver.yaml")
-          fi
-          echo "files<<EOF" >> $GITHUB_OUTPUT
-          echo "$files" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-      
-      - name: Check for updates
-        id: check-updates
-        run: |
-          updates='[]'
-          while IFS= read -r file; do
-            if [ -n "$file" ]; then
-              echo "Checking $file..."
-              # Clean up previous version_info.json to avoid stale data
-              rm -f version_info.json
-              
-              # Script exits with code 0 if update found, 1 if no update
-              if python scripts/check_version.py "$file" "version_info.json"; then
-                if [ -f "version_info.json" ]; then
-                  package_id=$(jq -r '.packageIdentifier' version_info.json)
-                  version=$(jq -r '.version' version_info.json)
-                  
-                  echo "✨ New version found: $package_id $version"
-                  
-                  # Check for existing PRs before adding to matrix
-                  echo "🔍 Checking for existing PRs: $package_id version $version"
-                  search_query="${package_id} ${version} in:title"
-                  prs=$(gh pr list \
-                    --repo microsoft/winget-pkgs \
-                    --search "$search_query" \
-                    --state all \
-                    --json number,title,state \
-                    --limit 10)
-                  
-                  should_skip="false"
-                  
-                  if [ -n "$prs" ] && [ "$prs" != "[]" ]; then
-                    pr_count=$(echo "$prs" | jq 'length')
-                    echo "Found $pr_count PR(s) matching search"
-                    
-                    for i in $(seq 0 $((pr_count - 1))); do
-                      pr=$(echo "$prs" | jq -r ".[$i]")
-                      pr_number=$(echo "$pr" | jq -r '.number')
-                      pr_title=$(echo "$pr" | jq -r '.title')
-                      pr_state=$(echo "$pr" | jq -r '.state')
-                      
-                      # Check if title contains both package ID and version
-                      if echo "$pr_title" | grep -qi "$package_id" && echo "$pr_title" | grep -q "$version"; then
-                        case "$pr_state" in
-                          OPEN|MERGED)
-                            echo "⏭️  PR #$pr_number is $pr_state - skipping"
-                            echo "   Title: $pr_title"
-                            echo "   URL: https://github.com/microsoft/winget-pkgs/pull/$pr_number"
-                            should_skip="true"
-                            break
-                            ;;
-                          CLOSED)
-                            echo "⚪ Found CLOSED PR #$pr_number"
-                            echo "   URL: https://github.com/microsoft/winget-pkgs/pull/$pr_number"
-                            
-                            # Check if branch still exists on fork
-                            fork_repo="${{ secrets.WINGET_FORK_REPO || format('{0}/winget-pkgs', github.repository_owner) }}"
-                            branch_name="${package_id}-${version}"
-                            
-                            echo "   Checking if branch '$branch_name' exists on $fork_repo..."
-                            if gh api "/repos/$fork_repo/git/refs/heads/$branch_name" > /dev/null 2>&1; then
-                              echo "   ⏭️  Branch still exists on fork - skipping to avoid duplicate PR"
-                              should_skip="true"
-                              break
-                            else
-                              echo "   ✅ Branch deleted - will retry with new PR"
-                            fi
-                            ;;
-                        esac
-                      fi
-                    done
-                  fi
-                  
-                  if [ "$should_skip" = "false" ]; then
-                    echo "✅ No blocking PR found - adding to matrix"
-                    update_json=$(jq -n \
-                      --arg file "$file" \
-                      --arg pkg "$package_id" \
-                      --arg ver "$version" \
-                      '{checkver: $file, package: $pkg, version: $ver}')
-                    updates=$(echo "$updates" | jq --argjson item "$update_json" '. + [$item]')
-                  fi
-                  
-                  rm -f version_info.json
-                else
-                  echo "⚠️ Script succeeded but no version_info.json created"
-                fi
-              else
-                echo "ℹ️ No update needed or check failed"
-              fi
-            fi
-          done <<< "${{ steps.find-checkver.outputs.files }}"
-          
-          # Use EOF delimiter for multiline JSON output
-          echo "matrix<<EOF" >> $GITHUB_OUTPUT
-          echo "$updates" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
-      
-      - name: Display found updates
-        run: |
-          echo "Found updates:"
-          echo '${{ steps.check-updates.outputs.matrix }}' | jq .
+  update:
+    name: Check and Update Packages
+    runs-on: windows-latest
 
-  update-manifest:
-    name: Update ${{ matrix.package }} to ${{ matrix.version }}
-    needs: check-versions
-    if: needs.check-versions.outputs.matrix != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.check-versions.outputs.matrix) }}
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: Setup environment
-        uses: ./.github/actions/setup-environment
-      
-      - name: Set up Git
+
+      - name: Setup PowerShell modules
+        shell: pwsh
         run: |
-          # Fetch the authenticated user's information from GitHub API
-          user_info=$(gh api user)
-          git_name=$(echo "$user_info" | jq -r '.name // .login')
-          user_id=$(echo "$user_info" | jq -r '.id')
-          user_login=$(echo "$user_info" | jq -r '.login')
-          
-          # Use numeric noreply format: ID+login@users.noreply.github.com
-          git_email="${user_id}+${user_login}@users.noreply.github.com"
-          
-          git config --global user.name "$git_name"
-          git config --global user.email "$git_email"
-          
-          echo "✅ Configured Git with user: $git_name <$git_email>"
-        env:
-          GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
-      
-      - name: Update manifest and create PR
+          if (-not (Get-Module -ListAvailable -Name powershell-yaml)) {
+            Install-Module -Name powershell-yaml -Force -Scope CurrentUser
+          }
+          Write-Host "✅ PowerShell modules ready"
+
+      - name: Run package updater
+        shell: pwsh
         run: |
-          python scripts/update_manifest.py "${{ matrix.checkver }}" "${{ matrix.package }}" "${{ matrix.version }}"
+          # Find checkver files
+          if ("${{ github.event.inputs.package }}") {
+            $checkverFiles = Get-ChildItem -Path manifests -Filter "${{ github.event.inputs.package }}.checkver.yaml" -Recurse
+          } else {
+            $checkverFiles = Get-ChildItem -Path manifests -Filter "*.checkver.yaml" -Recurse
+          }
+
+          Write-Host "Found $($checkverFiles.Count) checkver file(s)" -ForegroundColor Cyan
+
+          foreach ($file in $checkverFiles) {
+            Write-Host "`n========================================" -ForegroundColor Cyan
+            Write-Host "Processing: $($file.Name)" -ForegroundColor Cyan
+            Write-Host "========================================" -ForegroundColor Cyan
+
+            try {
+              # Check for updates
+              if (Test-Path "version_info.json") {
+                Remove-Item "version_info.json" -Force
+              }
+
+              pwsh -File scripts/Check-Version.ps1 "$($file.FullName)" "version_info.json"
+
+              if ($LASTEXITCODE -eq 0 -and (Test-Path "version_info.json")) {
+                $versionInfo = Get-Content "version_info.json" -Raw | ConvertFrom-Json
+                $packageId = $versionInfo.packageIdentifier
+                $version = $versionInfo.version
+
+                Write-Host "✨ New version found: $packageId $version" -ForegroundColor Green
+
+                # Check for existing PRs
+                Write-Host "🔍 Checking for existing PRs..." -ForegroundColor Cyan
+                $searchQuery = "$packageId $version in:title"
+                $prs = gh pr list --repo microsoft/winget-pkgs --search $searchQuery --state all --json number,title,state --limit 5 2>$null | ConvertFrom-Json
+
+                $shouldSkip = $false
+
+                if ($prs -and $prs.Count -gt 0) {
+                  foreach ($pr in $prs) {
+                    if ($pr.title -match [regex]::Escape($packageId) -and $pr.title -match [regex]::Escape($version)) {
+                      if ($pr.state -in @("OPEN", "MERGED")) {
+                        Write-Host "⏭️  PR #$($pr.number) is $($pr.state) - skipping" -ForegroundColor Yellow
+                        $shouldSkip = $true
+                        break
+                      }
+                    }
+                  }
+                }
+
+                if (-not $shouldSkip) {
+                  Write-Host "🚀 Updating manifest and creating PR..." -ForegroundColor Green
+                  pwsh -File scripts/Update-Manifest.ps1 "$($file.FullName)" "$packageId" "$version"
+                } else {
+                  Write-Host "⏭️  Skipping update" -ForegroundColor Yellow
+                }
+
+                Remove-Item "version_info.json" -Force -ErrorAction SilentlyContinue
+              } else {
+                Write-Host "ℹ️  No update needed" -ForegroundColor Gray
+              }
+            }
+            catch {
+              Write-Warning "Error processing $($file.Name): $_"
+            }
+          }
+
+          Write-Host "`n✅ Package updater completed" -ForegroundColor Green
         env:
-          # Required: Personal Access Token with repo + workflow scopes
-          # Optional: Specify fork repository (default: {GITHUB_REPOSITORY_OWNER}/winget-pkgs)
           GITHUB_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
           GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
           WINGET_FORK_REPO: ${{ secrets.WINGET_FORK_REPO }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
-          GITHUB_RUN_ID: ${{ github.run_id }}
-
-  summary:
-    name: Update Summary
-    needs: [check-versions, update-manifest]
-    if: always()
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Generate summary
-        run: |
-          echo "# WinGet Packages Update Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          matrix='${{ needs.check-versions.outputs.matrix }}'
-          count=$(echo "$matrix" | jq 'length')
-          
-          if [ "$count" -eq 0 ]; then
-            echo "✅ No updates found. All packages are up to date." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "📦 Found $count package(s) to update:" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "$matrix" | jq -r '.[] | "- **\(.package)** version \(.version)"' >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Check the [Pull Requests](https://github.com/microsoft/winget-pkgs/pulls?q=is:pr+author:${{ github.repository_owner }}) in microsoft/winget-pkgs" >> $GITHUB_STEP_SUMMARY
-          fi
