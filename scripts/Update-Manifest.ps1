@@ -178,15 +178,42 @@ try {
 
     # Download installer and calculate hash
     Write-Host "`nDownloading installer to calculate hash..." -ForegroundColor Cyan
-    $tempInstaller = Join-Path $env:TEMP "installer-$(Get-Random).exe"
+
+    # Detect installer type from URL
+    $installerExtension = [System.IO.Path]::GetExtension($primaryUrl).ToLower()
+    if ($installerExtension -eq '') {
+        # Try to detect from URL pattern
+        if ($primaryUrl -match '\.msi($|\?)') { $installerExtension = '.msi' }
+        elseif ($primaryUrl -match '\.msix($|\?)') { $installerExtension = '.msix' }
+        elseif ($primaryUrl -match '\.appx($|\?)') { $installerExtension = '.appx' }
+        else { $installerExtension = '.exe' }
+    }
+
+    $tempInstaller = Join-Path $env:TEMP "installer-$(Get-Random)$installerExtension"
+    $installerHash = $null
+    $productCode = $null
+    $signatureSha256 = $null
 
     if (Get-WebFile -Url $primaryUrl -OutFile $tempInstaller) {
+        # Calculate installer hash
         $installerHash = Get-FileSha256 -FilePath $tempInstaller
         Write-Host "✅ Calculated SHA256: $installerHash" -ForegroundColor Green
+
+        # Extract ProductCode for MSI installers
+        if ($installerExtension -eq '.msi') {
+            Write-Host "`nExtracting ProductCode from MSI..." -ForegroundColor Cyan
+            $productCode = Get-MsiProductCode -FilePath $tempInstaller
+        }
+
+        # Extract SignatureSha256 for MSIX/APPX packages
+        if ($installerExtension -in @('.msix', '.appx')) {
+            Write-Host "`nCalculating SignatureSha256 for MSIX..." -ForegroundColor Cyan
+            $signatureSha256 = Get-MsixSignatureSha256 -FilePath $tempInstaller
+        }
+
         Remove-Item $tempInstaller -Force
     } else {
         Write-Warning "Could not download installer, hash will not be updated"
-        $installerHash = $null
     }
 
     # Copy and update manifest files
@@ -199,8 +226,13 @@ try {
 
         Write-Host "  Updating: $($file.Name)" -ForegroundColor Gray
 
-        # Update manifest
-        Update-ManifestYaml -FilePath $destFile -OldVersion $latestVersion -NewVersion $Version -Hash $installerHash
+        # Update manifest with all extracted data
+        Update-ManifestYaml -FilePath $destFile `
+            -OldVersion $latestVersion `
+            -NewVersion $Version `
+            -Hash $installerHash `
+            -ProductCode $productCode `
+            -SignatureSha256 $signatureSha256
     }
 
     # Cleanup template directory

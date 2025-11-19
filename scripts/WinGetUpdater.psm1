@@ -637,6 +637,110 @@ function Get-WebFile {
     }
 }
 
+function Get-MsiProductCode {
+    <#
+    .SYNOPSIS
+        Extract ProductCode from MSI file
+
+    .PARAMETER FilePath
+        Path to MSI file
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath
+    )
+
+    if (-not (Test-Path $FilePath)) {
+        Write-Warning "MSI file not found: $FilePath"
+        return $null
+    }
+
+    try {
+        # Use Windows Installer COM object
+        $installer = New-Object -ComObject WindowsInstaller.Installer
+        $database = $installer.GetType().InvokeMember('OpenDatabase', 'InvokeMethod', $null, $installer, @($FilePath, 0))
+
+        # Query ProductCode property
+        $query = "SELECT `Value` FROM `Property` WHERE `Property` = 'ProductCode'"
+        $view = $database.GetType().InvokeMember('OpenView', 'InvokeMethod', $null, $database, ($query))
+        $view.GetType().InvokeMember('Execute', 'InvokeMethod', $null, $view, $null)
+
+        $record = $view.GetType().InvokeMember('Fetch', 'InvokeMethod', $null, $view, $null)
+
+        if ($record) {
+            $productCode = $record.GetType().InvokeMember('StringData', 'GetProperty', $null, $record, 1)
+            Write-Host "  ✓ Extracted ProductCode: $productCode" -ForegroundColor Green
+
+            # Cleanup COM objects
+            [System.Runtime.Interopservices.Marshal]::ReleaseComObject($record) | Out-Null
+            [System.Runtime.Interopservices.Marshal]::ReleaseComObject($view) | Out-Null
+            [System.Runtime.Interopservices.Marshal]::ReleaseComObject($database) | Out-Null
+            [System.Runtime.Interopservices.Marshal]::ReleaseComObject($installer) | Out-Null
+            [System.GC]::Collect()
+
+            return $productCode
+        }
+
+        # Cleanup if no record found
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($view) | Out-Null
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($database) | Out-Null
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($installer) | Out-Null
+        [System.GC]::Collect()
+
+        return $null
+    }
+    catch {
+        Write-Warning "Failed to extract ProductCode: $_"
+        return $null
+    }
+}
+
+function Get-MsixSignatureSha256 {
+    <#
+    .SYNOPSIS
+        Calculate SignatureSha256 for MSIX/APPX package
+
+    .PARAMETER FilePath
+        Path to MSIX/APPX file
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath
+    )
+
+    if (-not (Test-Path $FilePath)) {
+        Write-Warning "MSIX file not found: $FilePath"
+        return $null
+    }
+
+    try {
+        # Get authenticode signature
+        $signature = Get-AuthenticodeSignature -FilePath $FilePath -ErrorAction Stop
+
+        if ($signature.Status -ne 'Valid') {
+            Write-Warning "MSIX signature is not valid: $($signature.Status)"
+            return $null
+        }
+
+        # Calculate SHA256 hash of the signature certificate
+        if ($signature.SignerCertificate) {
+            $certBytes = $signature.SignerCertificate.GetRawCertData()
+            $sha256 = [System.Security.Cryptography.SHA256]::Create()
+            $hashBytes = $sha256.ComputeHash($certBytes)
+            $signatureSha256 = [System.BitConverter]::ToString($hashBytes) -replace '-', ''
+
+            Write-Host "  ✓ Calculated SignatureSha256: $signatureSha256" -ForegroundColor Green
+            return $signatureSha256
+        }
+
+        return $null
+    }
+    catch {
+        Write-Warning "Failed to calculate SignatureSha256: $_"
+        return $null
+    }
+}
+
 #endregion
 
 #region Manifest Operations
@@ -705,7 +809,11 @@ function Update-ManifestYaml {
 
         [string]$Hash,
 
-        [hashtable]$ArchHashes
+        [hashtable]$ArchHashes,
+
+        [string]$ProductCode,
+
+        [string]$SignatureSha256
     )
 
     $content = Get-Content $FilePath -Raw
@@ -719,6 +827,18 @@ function Update-ManifestYaml {
     # Replace hash if provided
     if ($Hash) {
         $content = $content -replace "InstallerSha256:\s+[A-F0-9]{64}", "InstallerSha256: $Hash"
+    }
+
+    # Replace ProductCode if provided and exists in manifest
+    if ($ProductCode -and $content -match 'ProductCode:') {
+        $content = $content -replace "ProductCode:\s+\{[A-F0-9\-]+\}", "ProductCode: $ProductCode"
+        Write-Host "  ✓ Updated ProductCode: $ProductCode" -ForegroundColor Green
+    }
+
+    # Replace SignatureSha256 if provided and exists in manifest
+    if ($SignatureSha256 -and $content -match 'SignatureSha256:') {
+        $content = $content -replace "SignatureSha256:\s+[A-F0-9]{64}", "SignatureSha256: $SignatureSha256"
+        Write-Host "  ✓ Updated SignatureSha256: $SignatureSha256" -ForegroundColor Green
     }
 
     # Replace architecture-specific hashes if provided
@@ -1052,6 +1172,8 @@ Export-ModuleMember -Function @(
     'Test-PackageUpdate',
     'Get-FileSha256',
     'Get-WebFile',
+    'Get-MsiProductCode',
+    'Get-MsixSignatureSha256',
     'Get-UpstreamManifest',
     'Update-ManifestYaml',
     'Initialize-GitRepository',

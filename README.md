@@ -113,8 +113,8 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
 ✅ YAML manifest updates with version replacement
 ✅ Git operations (clone, branch, commit, push)
 ✅ Pull request creation
-⏳ ProductCode extraction from MSI files (not yet implemented)
-⏳ SignatureSha256 calculation for MSIX packages (not yet implemented)
+✅ ProductCode extraction from MSI files
+✅ SignatureSha256 calculation for MSIX packages
 
 ## Local Development
 
