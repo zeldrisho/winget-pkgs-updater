@@ -12,339 +12,307 @@ permissions:
 jobs:
   cleanup-branches:
     name: Cleanup PR branches
-    runs-on: ubuntu-latest
-    
+    runs-on: windows-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
+
+      - name: Setup PowerShell modules
+        shell: pwsh
         run: |
-          pip install -r scripts/requirements.txt
+          Install-Module -Name powershell-yaml -Force -Scope CurrentUser
       
       - name: Delete branches from merged or outdated closed PRs
+        shell: pwsh
         run: |
-          set +e  # Don't exit on error - we want to continue processing all PRs
-          
-          fork_repo="${{ secrets.WINGET_FORK_REPO || format('{0}/winget-pkgs', github.repository_owner) }}"
-          
-          echo "🔍 Checking for merged and closed PRs in microsoft/winget-pkgs..."
-          echo "Fork repository: $fork_repo"
-          
-          # Get all merged PRs created by the fork owner
-          merged_prs=$(gh pr list \
-            --repo microsoft/winget-pkgs \
-            --author "${{ github.repository_owner }}" \
-            --state merged \
-            --limit 100 \
-            --json number,title,headRefName,headRepository)
-          
-          # Get all closed (non-merged) PRs created by the fork owner
-          closed_prs=$(gh pr list \
-            --repo microsoft/winget-pkgs \
-            --author "${{ github.repository_owner }}" \
-            --state closed \
-            --limit 100 \
-            --json number,title,headRefName,headRepository)
-          
-          merged_count=$(echo "$merged_prs" | jq 'length // 0')
-          closed_count=$(echo "$closed_prs" | jq 'length // 0')
-          
-          echo "Found $merged_count merged PR(s)"
-          echo "Found $closed_count closed PR(s)"
-          
-          if [ "$merged_count" -eq 0 ] && [ "$closed_count" -eq 0 ]; then
-            echo "✅ No merged or closed PRs found"
+          # Import WinGetUpdater module
+          Import-Module "$env:GITHUB_WORKSPACE/scripts/WinGetUpdater.psm1" -Force
+
+          $ErrorActionPreference = 'Continue'
+          $forkRepo = "${{ secrets.WINGET_FORK_REPO }}"
+          if (-not $forkRepo) {
+            $forkRepo = "${{ github.repository_owner }}/winget-pkgs"
+          }
+
+          Write-Host "🔍 Checking for merged and closed PRs in microsoft/winget-pkgs..."
+          Write-Host "Fork repository: $forkRepo"
+
+          # Get all merged PRs
+          $mergedPrsJson = gh pr list `
+            --repo microsoft/winget-pkgs `
+            --author "${{ github.repository_owner }}" `
+            --state merged `
+            --limit 100 `
+            --json number,title,headRefName,headRepository
+          $mergedPrs = $mergedPrsJson | ConvertFrom-Json
+
+          # Get all closed (non-merged) PRs
+          $closedPrsJson = gh pr list `
+            --repo microsoft/winget-pkgs `
+            --author "${{ github.repository_owner }}" `
+            --state closed `
+            --limit 100 `
+            --json number,title,headRefName,headRepository
+          $closedPrs = $closedPrsJson | ConvertFrom-Json
+
+          $mergedCount = if ($mergedPrs) { $mergedPrs.Count } else { 0 }
+          $closedCount = if ($closedPrs) { $closedPrs.Count } else { 0 }
+
+          Write-Host "Found $mergedCount merged PR(s)"
+          Write-Host "Found $closedCount closed PR(s)"
+
+          if ($mergedCount -eq 0 -and $closedCount -eq 0) {
+            Write-Host "✅ No merged or closed PRs found"
             exit 0
-          fi
-          
-          # Clone the fork to delete branches using git
-          echo ""
-          echo "📥 Cloning fork repository..."
-          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${fork_repo}.git" fork_repo
-          cd fork_repo
-          
-          # Configure git with authenticated user
-          user_info=$(gh api user)
-          git_name=$(echo "$user_info" | jq -r '.name // .login')
-          user_id=$(echo "$user_info" | jq -r '.id')
-          user_login=$(echo "$user_info" | jq -r '.login')
-          
-          # Use numeric noreply format: ID+login@users.noreply.github.com
-          git_email="${user_id}+${user_login}@users.noreply.github.com"
-          
-          git config user.name "$git_name"
-          git config user.email "$git_email"
-          echo "✅ Configured Git with user: $git_name <$git_email>"
-          
-          deleted_count=0
-          skipped_count=0
-          error_count=0
-          
+          }
+
+          # Clone fork repository
+          Write-Host ""
+          Write-Host "📥 Cloning fork repository..."
+          git clone --depth 1 "https://x-access-token:$env:GH_TOKEN@github.com/$forkRepo.git" fork_repo
+          Set-Location fork_repo
+
+          # Configure git user
+          $userInfo = gh api user | ConvertFrom-Json
+          $gitName = if ($userInfo.name) { $userInfo.name } else { $userInfo.login }
+          $gitEmail = "$($userInfo.id)+$($userInfo.login)@users.noreply.github.com"
+
+          git config user.name $gitName
+          git config user.email $gitEmail
+          Write-Host "✅ Configured Git with user: $gitName <$gitEmail>"
+
+          $deletedCount = 0
+          $skippedCount = 0
+          $errorCount = 0
+
           # Function to extract package identifier and version from PR title
-          # Expected formats:
-          #   "New version: PackageIdentifier version X.Y.Z"
-          #   "Update PackageIdentifier to X.Y.Z"
-          extract_package_version() {
-            local pr_title="$1"
-            local package_id=""
-            local version=""
-            
+          function Get-PackageVersionFromTitle {
+            param([string]$Title)
+
+            $packageId = ""
+            $version = ""
+
             # Pattern 1: "New version: PackageIdentifier version X.Y.Z"
-            if echo "$pr_title" | grep -q "New version:"; then
-              package_id=$(echo "$pr_title" | sed -n 's/^New version: \([^ ]*\) version .*/\1/p')
-              version=$(echo "$pr_title" | grep -oP 'version \K[\d\.]+' | head -1)
+            if ($Title -match '^New version:\s+([^\s]+)\s+version\s+([\d\.]+)') {
+              $packageId = $matches[1]
+              $version = $matches[2]
+            }
             # Pattern 2: "Update PackageIdentifier to X.Y.Z"
-            elif echo "$pr_title" | grep -q "Update.*to"; then
-              package_id=$(echo "$pr_title" | sed -n 's/^Update \([^ ]*\) to .*/\1/p')
-              version=$(echo "$pr_title" | grep -oP 'to \K[\d\.]+' | head -1)
-            # Fallback: try to extract any package-like identifier and version
-            else
-              package_id=$(echo "$pr_title" | grep -oP '^[A-Z][a-zA-Z0-9]*\.[A-Z][a-zA-Z0-9\.]*' || echo "")
-              version=$(echo "$pr_title" | grep -oP '\d+\.\d+(?:\.\d+)*' | head -1 || echo "")
-            fi
-            
-            echo "${package_id}|${version}"
+            elseif ($Title -match '^Update\s+([^\s]+)\s+to\s+([\d\.]+)') {
+              $packageId = $matches[1]
+              $version = $matches[2]
+            }
+            # Fallback: extract any package-like identifier and version
+            elseif ($Title -match '^([A-Z][a-zA-Z0-9]*\.[A-Z][a-zA-Z0-9\.]+).*?([\d\.]+)') {
+              $packageId = $matches[1]
+              $version = $matches[2]
+            }
+
+            return @{
+              PackageId = $packageId
+              Version = $version
+            }
           }
-          
+
           # Function to get latest version from microsoft/winget-pkgs
-          get_latest_version() {
-            local package_id="$1"
-            # Derive manifest path from package identifier
-            local manifest_path=$(python3 ../scripts/config.py get-manifest-path "$package_id" 2>/dev/null || echo "")
-            
-            if [ -z "$manifest_path" ]; then
-              echo ""
-              return
-            fi
-            
-            # Get all version directories
-            local versions=$(gh api "/repos/microsoft/winget-pkgs/contents/$manifest_path" --jq '.[].name' 2>/dev/null || echo "")
-            
-            if [ -z "$versions" ]; then
-              echo ""
-              return
-            fi
-            
-            # Use Python to find the latest version
-            local latest=$(echo "$versions" | python3 -c '\
-              import sys
-              from packaging.version import parse, InvalidVersion
-              
-              versions = []
-              for line in sys.stdin:
-                  line = line.strip()
-                  if line:
-                      try:
-                          versions.append((parse(line), line))
-                      except InvalidVersion:
-                          pass
-              
-              if versions:
-                  versions.sort(reverse=True)
-                  print(versions[0][1])
-              ' 2>/dev/null || echo "")
-            
-            echo "$latest"
+          function Get-LatestWinGetVersionFromAPI {
+            param([string]$PackageId)
+
+            # Derive manifest path
+            $parts = $PackageId.Split('.')
+            $first = $parts[0].Substring(0, 1).ToLower()
+
+            # Try standard pattern first
+            $manifestPath = "manifests/$first/$($parts -join '/')"
+
+            try {
+              $response = gh api "/repos/microsoft/winget-pkgs/contents/$manifestPath" 2>$null | ConvertFrom-Json
+              if ($response) {
+                # Get version folders
+                $versions = $response | Where-Object { $_.type -eq 'dir' } | Select-Object -ExpandProperty name
+                if ($versions) {
+                  # Use .NET version type for semantic versioning
+                  $latestVersion = $versions | ForEach-Object {
+                    try {
+                      [version]$_
+                    } catch {
+                      $null
+                    }
+                  } | Where-Object { $_ } | Sort-Object -Descending | Select-Object -First 1
+
+                  if ($latestVersion) {
+                    return $latestVersion.ToString()
+                  }
+                }
+              }
+            } catch {
+              # Path not found, return empty
+            }
+
+            return ""
           }
-          
-          # Function to compare versions (returns 0 if v1 < v2, 1 otherwise)
-          is_version_older() {
-            local version1="$1"
-            local version2="$2"
-            
-            if [ -z "$version1" ] || [ -z "$version2" ]; then
-              return 1  # Can't compare, assume not older
-            fi
-            
-            local result=$(python3 <<EOF
-          from packaging.version import parse, InvalidVersion
-          try:
-              v1 = parse('$version1')
-              v2 = parse('$version2')
-              print('1' if v1 < v2 else '0')
-          except InvalidVersion:
-              print('0')
-          EOF
-          )
-            result=$(echo "$result" 2>/dev/null || echo "0")
-            
-            [ "$result" = "1" ]
+
+          # Function to compare versions
+          function Test-VersionLessOrEqual {
+            param([string]$Version1, [string]$Version2)
+
+            if (-not $Version1 -or -not $Version2) {
+              return $false
+            }
+
+            try {
+              $v1 = [version]$Version1
+              $v2 = [version]$Version2
+              return $v1 -le $v2
+            } catch {
+              # Fallback to string comparison
+              return $Version1 -le $Version2
+            }
           }
-          
-          # Function to compare versions (returns 0 if v1 <= v2, 1 otherwise)
-          is_version_older_or_equal() {
-            local version1="$1"
-            local version2="$2"
-            
-            if [ -z "$version1" ] || [ -z "$version2" ]; then
-              return 1  # Can't compare, assume not older/equal
-            fi
-            
-            local result=$(python3 <<EOF
-          from packaging.version import parse, InvalidVersion
-          try:
-              v1 = parse('$version1')
-              v2 = parse('$version2')
-              print('1' if v1 <= v2 else '0')
-          except InvalidVersion:
-              print('0')
-          EOF
-          )
-            result=$(echo "$result" 2>/dev/null || echo "0")
-            
-            [ "$result" = "1" ]
-          }
-          
+
           # Process merged PRs
-          echo ""
-          echo "🗑️  Processing merged PRs (will delete all branches)..."
-          for i in $(seq 0 $((merged_count - 1))); do
-            pr=$(echo "$merged_prs" | jq -r ".[$i]")
-            pr_number=$(echo "$pr" | jq -r '.number')
-            pr_title=$(echo "$pr" | jq -r '.title')
-            branch_name=$(echo "$pr" | jq -r '.headRefName')
-            head_repo=$(echo "$pr" | jq -r '.headRepository.nameWithOwner // ""')
-            
-            echo ""
-            echo "🔍 Processing merged PR #$pr_number: $pr_title"
-            echo "   Branch: $branch_name"
-            
-            # If head repository info is available, check if it matches our fork
-            if [ -n "$head_repo" ] && [ "$head_repo" != "null" ]; then
-              echo "   Repository: $head_repo"
-              # Only process branches from our fork
-              if [ "$head_repo" != "$fork_repo" ]; then
-                echo "   ⏭️  Branch from different repo - skipping"
-                skipped_count=$((skipped_count + 1))
+          Write-Host ""
+          Write-Host "🗑️  Processing merged PRs (will delete all branches)..."
+          if ($mergedPrs) {
+            foreach ($pr in $mergedPrs) {
+              Write-Host ""
+              Write-Host "🔍 Processing merged PR #$($pr.number): $($pr.title)"
+              Write-Host "   Branch: $($pr.headRefName)"
+
+              $headRepo = if ($pr.headRepository) { $pr.headRepository.nameWithOwner } else { "" }
+
+              if ($headRepo) {
+                Write-Host "   Repository: $headRepo"
+                if ($headRepo -ne $forkRepo) {
+                  Write-Host "   ⏭️  Branch from different repo - skipping"
+                  $skippedCount++
+                  continue
+                }
+              } else {
+                Write-Host "   Repository: (not available - will check if branch exists)"
+              }
+
+              # Check if branch exists
+              $branchExists = git ls-remote --heads origin $pr.headRefName | Select-String $pr.headRefName
+              if ($branchExists) {
+                Write-Host "   🗑️  Deleting merged PR branch from fork..."
+                try {
+                  git push origin --delete $pr.headRefName 2>&1 | Out-Null
+                  Write-Host "   ✅ Branch deleted successfully (PR was merged)"
+                  $deletedCount++
+                } catch {
+                  Write-Host "   ⚠️  Failed to delete branch"
+                  $errorCount++
+                }
+              } else {
+                Write-Host "   ℹ️  Branch already deleted"
+                $skippedCount++
+              }
+            }
+          }
+
+          # Process closed PRs
+          Write-Host ""
+          Write-Host "🔍 Processing closed PRs (checking for outdated versions)..."
+          if ($closedPrs) {
+            foreach ($pr in $closedPrs) {
+              Write-Host ""
+              Write-Host "🔍 Processing closed PR #$($pr.number): $($pr.title)"
+              Write-Host "   Branch: $($pr.headRefName)"
+
+              $headRepo = if ($pr.headRepository) { $pr.headRepository.nameWithOwner } else { "" }
+
+              if ($headRepo) {
+                Write-Host "   Repository: $headRepo"
+                if ($headRepo -ne $forkRepo) {
+                  Write-Host "   ⏭️  Branch from different repo - skipping"
+                  $skippedCount++
+                  continue
+                }
+              } else {
+                Write-Host "   Repository: (not available - will check if branch exists)"
+              }
+
+              # Check if branch exists
+              $branchExists = git ls-remote --heads origin $pr.headRefName | Select-String $pr.headRefName
+              if (-not $branchExists) {
+                Write-Host "   ℹ️  Branch already deleted"
+                $skippedCount++
                 continue
-              fi
-            else
-              echo "   Repository: (not available - will check if branch exists)"
-            fi
-            
-            # Check if branch exists on remote
-            if git ls-remote --heads origin "$branch_name" | grep -q "$branch_name"; then
-              echo "   🗑️  Deleting merged PR branch from fork..."
-              if git push origin --delete "$branch_name" 2>&1; then
-                echo "   ✅ Branch deleted successfully (PR was merged)"
-                deleted_count=$((deleted_count + 1))
-              else
-                echo "   ⚠️  Failed to delete branch"
-                error_count=$((error_count + 1))
-              fi
-            else
-              echo "   ℹ️  Branch already deleted"
-              skipped_count=$((skipped_count + 1))
-            fi
-          done
-          
-          # Process closed (non-merged) PRs
-          echo ""
-          echo "🔍 Processing closed PRs (checking for outdated versions)..."
-          for i in $(seq 0 $((closed_count - 1))); do
-            pr=$(echo "$closed_prs" | jq -r ".[$i]")
-            pr_number=$(echo "$pr" | jq -r '.number')
-            pr_title=$(echo "$pr" | jq -r '.title')
-            branch_name=$(echo "$pr" | jq -r '.headRefName')
-            head_repo=$(echo "$pr" | jq -r '.headRepository.nameWithOwner // ""')
-            
-            echo ""
-            echo "🔍 Processing closed PR #$pr_number: $pr_title"
-            echo "   Branch: $branch_name"
-            
-            # If head repository info is available, check if it matches our fork
-            if [ -n "$head_repo" ] && [ "$head_repo" != "null" ]; then
-              echo "   Repository: $head_repo"
-              # Only process branches from our fork
-              if [ "$head_repo" != "$fork_repo" ]; then
-                echo "   ⏭️  Branch from different repo - skipping"
-                skipped_count=$((skipped_count + 1))
+              }
+
+              # Extract package info from title
+              $packageInfo = Get-PackageVersionFromTitle -Title $pr.title
+              $packageId = $packageInfo.PackageId
+              $prVersion = $packageInfo.Version
+
+              Write-Host "   Package: $packageId"
+              Write-Host "   PR Version: $prVersion"
+
+              if (-not $packageId -or -not $prVersion) {
+                Write-Host "   ⚠️  Could not extract package info from title - skipping"
+                $skippedCount++
                 continue
-              fi
-            else
-              echo "   Repository: (not available - will check if branch exists)"
-            fi
-            
-            # Check if branch exists on remote
-            if ! git ls-remote --heads origin "$branch_name" | grep -q "$branch_name"; then
-              echo "   ℹ️  Branch already deleted"
-              skipped_count=$((skipped_count + 1))
-              continue
-            fi
-            
-            # Extract package identifier and version from PR title
-            package_info=$(extract_package_version "$pr_title")
-            package_id=$(echo "$package_info" | cut -d'|' -f1)
-            pr_version=$(echo "$package_info" | cut -d'|' -f2)
-            
-            echo "   Package: $package_id"
-            echo "   PR Version: $pr_version"
-            
-            if [ -z "$package_id" ] || [ -z "$pr_version" ]; then
-              echo "   ⚠️  Could not extract package info from title - skipping"
-              skipped_count=$((skipped_count + 1))
-              continue
-            fi
-            
-            # Get latest version from microsoft/winget-pkgs
-            echo "   🔍 Checking latest version in microsoft/winget-pkgs..."
-            latest_version=$(get_latest_version "$package_id")
-            
-            if [ -z "$latest_version" ]; then
-              echo "   ⚠️  Could not determine latest version from microsoft/winget-pkgs - skipping"
-              skipped_count=$((skipped_count + 1))
-              continue
-            fi
-            
-            echo "   Latest in microsoft/winget-pkgs: $latest_version"
-            
-            # Check if PR version is older than or equal to latest version
-            if is_version_older_or_equal "$pr_version" "$latest_version"; then
-              echo "   🗑️  PR version ($pr_version) ≤ Latest ($latest_version) - deleting branch..."
-              if git push origin --delete "$branch_name" 2>&1; then
-                echo "   ✅ Branch deleted successfully (version already in repo or outdated)"
-                deleted_count=$((deleted_count + 1))
-              else
-                echo "   ⚠️  Failed to delete branch"
-                error_count=$((error_count + 1))
-              fi
-            else
-              echo "   ℹ️  PR version ($pr_version) > Latest ($latest_version) - keeping branch (newer version, can retry)"
-              skipped_count=$((skipped_count + 1))
-            fi
-          done
-          
-          echo ""
-          echo "📊 Summary:"
-          echo "   Total PRs processed: $((merged_count + closed_count))"
-          echo "   - Merged PRs: $merged_count (all branches deleted if found)"
-          echo "   - Closed PRs: $closed_count (only outdated versions deleted)"
-          echo "   Branches deleted: $deleted_count"
-          echo "   Already deleted/skipped: $skipped_count"
-          echo "   Errors: $error_count"
-          
-          # Add to GitHub step summary
-          echo "## 🧹 Branch Cleanup Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Cleanup Policy" >> $GITHUB_STEP_SUMMARY
-          echo "- **Merged PRs**: Delete all branches (PR was accepted)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Closed PRs**: Delete only if version ≤ latest in microsoft/winget-pkgs" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Results" >> $GITHUB_STEP_SUMMARY
-          echo "- **Total PRs processed:** $((merged_count + closed_count))" >> $GITHUB_STEP_SUMMARY
-          echo "  - Merged PRs: $merged_count" >> $GITHUB_STEP_SUMMARY
-          echo "  - Closed PRs: $closed_count" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branches deleted:** $deleted_count" >> $GITHUB_STEP_SUMMARY
-          echo "- **Already deleted/skipped:** $skipped_count" >> $GITHUB_STEP_SUMMARY
-          echo "- **Errors:** $error_count" >> $GITHUB_STEP_SUMMARY
-          
-          # Exit with success (0) regardless of individual branch deletion errors
+              }
+
+              # Get latest version
+              Write-Host "   🔍 Checking latest version in microsoft/winget-pkgs..."
+              $latestVersion = Get-LatestWinGetVersionFromAPI -PackageId $packageId
+
+              if (-not $latestVersion) {
+                Write-Host "   ⚠️  Could not determine latest version from microsoft/winget-pkgs - skipping"
+                $skippedCount++
+                continue
+              }
+
+              Write-Host "   Latest in microsoft/winget-pkgs: $latestVersion"
+
+              # Compare versions
+              if (Test-VersionLessOrEqual -Version1 $prVersion -Version2 $latestVersion) {
+                Write-Host "   🗑️  PR version ($prVersion) ≤ Latest ($latestVersion) - deleting branch..."
+                try {
+                  git push origin --delete $pr.headRefName 2>&1 | Out-Null
+                  Write-Host "   ✅ Branch deleted successfully (version already in repo or outdated)"
+                  $deletedCount++
+                } catch {
+                  Write-Host "   ⚠️  Failed to delete branch"
+                  $errorCount++
+                }
+              } else {
+                Write-Host "   ℹ️  PR version ($prVersion) > Latest ($latestVersion) - keeping branch (newer version, can retry)"
+                $skippedCount++
+              }
+            }
+          }
+
+          # Summary
+          Write-Host ""
+          Write-Host "📊 Summary:"
+          Write-Host "   Total PRs processed: $($mergedCount + $closedCount)"
+          Write-Host "   - Merged PRs: $mergedCount (all branches deleted if found)"
+          Write-Host "   - Closed PRs: $closedCount (only outdated versions deleted)"
+          Write-Host "   Branches deleted: $deletedCount"
+          Write-Host "   Already deleted/skipped: $skippedCount"
+          Write-Host "   Errors: $errorCount"
+
+          # GitHub step summary
+          @"
+          ## 🧹 Branch Cleanup Summary
+
+          ### Cleanup Policy
+          - **Merged PRs**: Delete all branches (PR was accepted)
+          - **Closed PRs**: Delete only if version ≤ latest in microsoft/winget-pkgs
+
+          ### Results
+          - **Total PRs processed:** $($mergedCount + $closedCount)
+            - Merged PRs: $mergedCount
+            - Closed PRs: $closedCount
+          - **Branches deleted:** $deletedCount
+          - **Already deleted/skipped:** $skippedCount
+          - **Errors:** $errorCount
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
           exit 0
         env:
           GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
