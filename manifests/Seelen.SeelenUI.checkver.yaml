@@ -1,7 +1,0 @@
-checkver:
-  type: github
-  repo: eythaann/Seelen-UI
-  appendDotZero: true
-
-installerUrlTemplate: "https://github.com/eythaann/Seelen-UI/releases/download/v{versionShort}/Seelen.SeelenUI_{version}_x64__p6yyn03m1894e.Msix"
-
