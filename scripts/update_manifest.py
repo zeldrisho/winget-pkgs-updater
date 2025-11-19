@@ -18,7 +18,7 @@ from typing import Dict, List, Optional
 
 # Import from modules
 from git.pr import check_existing_pr, create_pull_request
-from git.repo import clone_winget_pkgs, create_pr_branch, commit_and_push
+from git.repo import clone_winget_pkgs, create_pr_branch, commit_and_push, configure_git_user
 from package.hasher import download_file, calculate_sha256
 from package.msix import calculate_msix_signature_sha256
 from package.msi import extract_product_code_from_msi
@@ -600,6 +600,9 @@ def main():
         repo_dir = args.fork_path
         print(f"Using existing fork at: {repo_dir}")
         
+        # Configure git user dynamically
+        configure_git_user(repo_dir)
+        
         # Update manifests with release notes and multi-arch support
         if not update_manifests(repo_dir, manifest_path, package_id, version, installer_url, release_notes, release_notes_url, installer_urls, metadata):
             print("Failed to update manifests")
@@ -615,6 +618,9 @@ def main():
             if not clone_winget_pkgs(fork_repo, repo_dir, token):
                 print("Failed to clone repository")
                 sys.exit(1)
+            
+            # Configure git user dynamically
+            configure_git_user(repo_dir)
             
             # Create branch
             branch_name = create_pr_branch(repo_dir, package_id, version)

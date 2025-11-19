@@ -4,6 +4,7 @@ Git repository operations (clone, branch, commit, push)
 
 import sys
 import subprocess
+import json
 
 
 def clone_winget_pkgs(fork_repo: str, temp_dir: str, token: str) -> bool:
@@ -169,4 +170,40 @@ def commit_and_push(repo_dir: str, package_id: str, version: str, branch_name: s
         return True
     except Exception as e:
         print(f"Error committing/pushing: {e}", file=sys.stderr)
+        return False
+
+
+def configure_git_user(repo_dir: str) -> bool:
+    """
+    Configure git user.name and user.email from GitHub API.
+    """
+    try:
+        print("Configuring git user from GitHub API...")
+        # Fetch user info from GitHub CLI
+        result = subprocess.run(
+            ['gh', 'api', 'user', '--jq', '{login: .login, id: .id, name: .name, email: .email}'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        user_info = json.loads(result.stdout)
+        
+        login = user_info['login']
+        user_id = user_info['id']
+        name = user_info['name'] or login
+        email = user_info['email']
+        
+        if not email:
+            email = f"{user_id}+{login}@users.noreply.github.com"
+            print(f"   Using noreply email: {email}")
+        else:
+            print(f"   Using GitHub email: {email}")
+            
+        # Configure git
+        subprocess.run(['git', 'config', 'user.name', name], cwd=repo_dir, check=True)
+        subprocess.run(['git', 'config', 'user.email', email], cwd=repo_dir, check=True)
+        
+        return True
+    except Exception as e:
+        print(f"Error configuring git user: {e}", file=sys.stderr)
         return False
