@@ -94,6 +94,7 @@ jobs:
           }
 
           Write-Host "`n✅ Package updater completed" -ForegroundColor Green
+          exit 0
         env:
           GITHUB_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
           GH_TOKEN: ${{ secrets.WINGET_PKGS_TOKEN || github.token }}
