@@ -32,6 +32,20 @@ checkver:
 installerUrlTemplate: "https://example.com/{version}/installer.exe"
 ```
 
+**Close Related Issues (Optional):**
+```yaml
+checkver:
+  type: github
+  repo: owner/repo
+
+installerUrlTemplate: "https://github.com/owner/repo/releases/download/v{version}/app.exe"
+
+# Close issues when PR is created
+closeIssues:
+  - 1
+  - 2
+```
+
 ### Auto-Derived Fields
 
 The following fields are automatically derived and should **NOT** be included:

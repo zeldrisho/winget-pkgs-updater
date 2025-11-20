@@ -1287,25 +1287,40 @@ function New-PullRequest {
         [string]$Version,
 
         [Parameter(Mandatory)]
-        [string]$BranchName
+        [string]$BranchName,
+
+        [Parameter()]
+        [int[]]$CloseIssues = @()
     )
 
     try {
         $title = "New version: $PackageId version $Version"
-        $body = @"
-## Update Information
 
-- **Package**: $PackageId
-- **Version**: $Version
-- **Submitted by**: Automated WinGet Package Updater
-- **Automation**: https://github.com/zeldrisho/winget-pkgs-updater
+        # Get workflow run information from environment
+        $runNumber = $env:GITHUB_RUN_NUMBER
+        $runId = $env:GITHUB_RUN_ID
+        $repoName = $env:GITHUB_REPOSITORY
+        if (-not $repoName) {
+            $repoName = "zeldrisho/winget-pkgs-updater"
+        }
 
-This PR was created automatically by the [WinGet Package Updater](https://github.com/zeldrisho/winget-pkgs-updater).
-"@
+        # Build body with close issues if provided
+        $closeSection = ""
+        if ($CloseIssues -and $CloseIssues.Count -gt 0) {
+            $issueRefs = $CloseIssues | ForEach-Object { "Close #$_" }
+            $closeSection = ($issueRefs -join "`n") + "`n`n"
+        }
+
+        # Create initial body (PR number will be added after creation)
+        $body = "${closeSection}Automated by [$repoName](https://github.com/$repoName)"
+        if ($runNumber -and $runId) {
+            $body += " in workflow run [#$runNumber](https://github.com/$repoName/actions/runs/$runId)"
+        }
+        $body += "`n"
 
         Write-Host "Creating pull request..." -ForegroundColor Cyan
 
-        $pr = gh pr create `
+        $prUrl = gh pr create `
             --repo microsoft/winget-pkgs `
             --head "$ForkOwner`:$BranchName" `
             --title $title `
@@ -1313,7 +1328,23 @@ This PR was created automatically by the [WinGet Package Updater](https://github
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "✅ Pull request created successfully!" -ForegroundColor Green
-            Write-Host "PR URL: $pr" -ForegroundColor Cyan
+            Write-Host "PR URL: $prUrl" -ForegroundColor Cyan
+
+            # Extract PR number from URL and update body with CodeFlow link
+            if ($prUrl -match '/pull/(\d+)') {
+                $prNumber = $matches[1]
+                $codeflowLink = "`n###### Microsoft Reviewers: [Open in CodeFlow](https://microsoft.github.io/open-pr/?codeflow=https://github.com/microsoft/winget-pkgs/pull/$prNumber)"
+
+                $updatedBody = $body + $codeflowLink
+
+                # Update PR body with CodeFlow link
+                gh pr edit $prNumber --repo microsoft/winget-pkgs --body $updatedBody 2>&1 | Out-Null
+
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "✓ Added CodeFlow link to PR" -ForegroundColor Green
+                }
+            }
+
             return $true
         }
         else {
