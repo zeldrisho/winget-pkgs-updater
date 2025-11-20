@@ -78,6 +78,11 @@ jobs:
                 Write-Host "🚀 Creating manifest update and PR..." -ForegroundColor Green
                 pwsh -File scripts/Update-Manifest.ps1 "$($file.FullName)" "$packageId" "$version"
 
+                if ($LASTEXITCODE -ne 0) {
+                  Remove-Item "version_info.json" -Force -ErrorAction SilentlyContinue
+                  throw "Update-Manifest.ps1 failed with exit code $LASTEXITCODE"
+                }
+
                 Remove-Item "version_info.json" -Force -ErrorAction SilentlyContinue
               } else {
                 Write-Host "ℹ️  No update needed or PR already exists" -ForegroundColor Gray
