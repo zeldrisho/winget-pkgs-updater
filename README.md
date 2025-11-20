@@ -15,34 +15,13 @@ Automated tool to check for new package versions and create pull requests to [mi
 
 ## Quick Setup
 
-**New to this project?** → See [docs/quick-start.md](docs/quick-start.md) for a complete setup guide!
+**New to this project?** → See **[docs/quick-start.md](docs/quick-start.md)** for complete 5-minute setup guide!
 
-### 1. Fork Repositories
-
-- Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
-- Fork this repository
-
-### 2. Create GitHub Token
-
-1. Go to [GitHub Settings → Developer settings → Tokens (classic)](https://github.com/settings/tokens)
-2. Generate new token with scopes: `repo`, `workflow`
-3. Copy the token
-
-### 3. Add Secrets
-
-In your forked repository:
-
-- Go to Settings → Secrets and variables → Actions
-- Create secret: `WINGET_PKGS_TOKEN` = your token (required)
-- Create secret: `WINGET_FORK_REPO` = your fork repository in format `username/winget-pkgs` (optional, defaults to `{GITHUB_REPOSITORY_OWNER}/winget-pkgs`)
-
-### 4. Run Workflow
-
-- Go to Actions → Update WinGet Packages → Run workflow
+**TL;DR**: Fork repos → Add `WINGET_PKGS_TOKEN` secret → Create `.checkver.yaml` files → Run workflow
 
 ## Adding Packages
 
-See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contributing.md](docs/contributing.md) for detailed instructions.
+See **[docs/contributing.md](docs/contributing.md)** for detailed instructions on adding new packages.
 
 ## Documentation
 
@@ -119,71 +98,12 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
 
 ## Local Development
 
-### Testing Version Detection
+See **[docs/development.md](docs/development.md)** for complete local development guide including:
 
-```powershell
-# Test a package
-pwsh -File scripts/Check-Version.ps1 manifests/Microsoft.PowerShell.checkver.yaml
-
-# Save output to JSON
-pwsh -File scripts/Check-Version.ps1 manifests/Package.checkver.yaml version_info.json
-
-# View output
-Get-Content version_info.json | ConvertFrom-Json | ConvertTo-Json
-```
-
-Exit codes:
-- `0` = New version detected
-- `1` = No update needed or check failed
-
-### Testing Manifest Validation
-
-The workflow includes automatic manifest validation using `winget validate`. To test locally:
-
-```powershell
-# Validate manifest files
-winget validate --manifest path/to/manifest/directory
-
-# Example: Validate a specific version
-winget validate --manifest manifests/m/Microsoft/PowerShell/7.5.0
-```
-
-**Note:** WinGet must be installed for validation. If not available, the validation step will be skipped with a warning.
-
-### Prerequisites
-
-1. Install PowerShell 7.4+:
-   ```bash
-   # Windows (winget)
-   winget install Microsoft.PowerShell
-
-   # macOS (Homebrew)
-   brew install powershell/tap/powershell
-
-   # Linux (see https://aka.ms/install-powershell)
-   ```
-
-2. Install GitHub CLI:
-   ```bash
-   # Windows
-   winget install GitHub.cli
-
-   # macOS
-   brew install gh
-
-   # Linux
-   # See https://github.com/cli/cli#installation
-   ```
-
-3. Install PowerShell modules:
-   ```powershell
-   Install-Module -Name powershell-yaml -Scope CurrentUser
-   ```
-
-4. Authenticate GitHub CLI:
-   ```bash
-   gh auth login
-   ```
+- Testing version detection
+- Manifest validation
+- Prerequisites and setup
+- Debugging tips
 
 ## Project Structure
 
