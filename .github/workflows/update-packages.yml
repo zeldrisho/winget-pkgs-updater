@@ -55,7 +55,8 @@ jobs:
               # Step 2: Check latest version from package homepage/source
               # Step 3: Compare versions to determine if update is needed
               # Step 4: Check if PR already exists for this version
-              # Step 5: Create manifest update and PR if all checks pass
+              # Step 5: Create manifests, calculate hashes, and validate
+              # Step 6: Create PR if validation passes
 
               # Cleanup any previous version info
               if (Test-Path "version_info.json") {

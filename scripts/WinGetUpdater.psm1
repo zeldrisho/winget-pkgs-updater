@@ -993,6 +993,60 @@ function Update-ManifestYaml {
     Set-Content -Path $FilePath -Value $content -NoNewline
 }
 
+function Test-WinGetManifest {
+    <#
+    .SYNOPSIS
+        Validate manifest files using winget validate command
+
+    .DESCRIPTION
+        Runs 'winget validate --manifest <path>' to verify manifest files are valid
+        before creating a pull request. This catches formatting errors and schema
+        violations early.
+
+    .PARAMETER ManifestPath
+        Path to the directory containing manifest YAML files
+
+    .RETURNS
+        $true if validation passes, $false otherwise
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ManifestPath
+    )
+
+    try {
+        Write-Host "`nValidating manifest files..." -ForegroundColor Cyan
+
+        # Check if winget is available
+        $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
+        if (-not $wingetCmd) {
+            Write-Warning "winget command not found. Skipping validation."
+            Write-Warning "Install winget from Microsoft Store or https://aka.ms/getwinget"
+            return $true  # Don't block PR creation if winget is not available
+        }
+
+        # Validate manifest
+        Write-Host "  Running: winget validate --manifest `"$ManifestPath`"" -ForegroundColor Gray
+        $output = winget validate --manifest $ManifestPath 2>&1
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Manifest validation passed!" -ForegroundColor Green
+            return $true
+        }
+        else {
+            Write-Host "❌ Manifest validation failed!" -ForegroundColor Red
+            Write-Host "`nValidation output:" -ForegroundColor Yellow
+            Write-Host $output -ForegroundColor Gray
+            return $false
+        }
+    }
+    catch {
+        Write-Warning "Error during manifest validation: $_"
+        Write-Warning "Proceeding without validation..."
+        return $true  # Don't block PR creation on validation errors
+    }
+}
+
 #endregion
 
 #region GitHub API Operations
@@ -1631,6 +1685,7 @@ Export-ModuleMember -Function @(
     'Get-MsixSignatureSha256',
     'Get-UpstreamManifest',
     'Update-ManifestYaml',
+    'Test-WinGetManifest',
     'Get-GitHubDefaultBranch',
     'Get-GitHubTreeFromCommit',
     'New-GitHubBlob',

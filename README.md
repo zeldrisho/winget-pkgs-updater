@@ -82,10 +82,11 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
     - **Always updated**: PackageVersion, InstallerSha256, InstallerUrl
     - **Conditionally updated**: ProductCode, ReleaseDate, ReleaseNotes (if exist in old manifest)
     - **Preserved**: All other fields (Publisher, License, Tags, etc.)
+11. **Validate manifests** - Run `winget validate --manifest` to verify correctness
 
 #### Stage 3: Publish
-11. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
-12. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
+12. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
+13. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
 
 ## PR Management
 
@@ -110,8 +111,9 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
 ✅ Installer download and SHA256 calculation
 ✅ Manifest fetching from microsoft/winget-pkgs
 ✅ YAML manifest updates with version replacement
+✅ Manifest validation using `winget validate` before PR creation
 ✅ GitHub API-based commit creation (no repository cloning)
-✅ Pull request creation
+✅ Pull request creation with automatic issue detection and closing
 ✅ ProductCode extraction from MSI files
 ✅ SignatureSha256 calculation for MSIX packages
 
@@ -133,6 +135,20 @@ Get-Content version_info.json | ConvertFrom-Json | ConvertTo-Json
 Exit codes:
 - `0` = New version detected
 - `1` = No update needed or check failed
+
+### Testing Manifest Validation
+
+The workflow includes automatic manifest validation using `winget validate`. To test locally:
+
+```powershell
+# Validate manifest files
+winget validate --manifest path/to/manifest/directory
+
+# Example: Validate a specific version
+winget validate --manifest manifests/m/Microsoft/PowerShell/7.5.0
+```
+
+**Note:** WinGet must be installed for validation. If not available, the validation step will be skipped with a warning.
 
 ### Prerequisites
 

@@ -207,6 +207,14 @@ try {
     # Cleanup template directory
     Remove-Item $templateDir -Recurse -Force
 
+    # Validate manifest files before publishing
+    if (-not (Test-WinGetManifest -ManifestPath $newVersionDir)) {
+        Write-Error "Manifest validation failed. Please review the errors above."
+        Write-Host "`nManifest directory: $newVersionDir" -ForegroundColor Yellow
+        Write-Host "You can manually validate with: winget validate --manifest `"$newVersionDir`"" -ForegroundColor Gray
+        exit 1
+    }
+
     # Publish manifest via GitHub API
     Write-Host "`nPublishing manifest..." -ForegroundColor Cyan
     if (-not (Publish-ManifestViaAPI -ForkRepo $forkRepo -ManifestPath $manifestPath -Version $Version -ManifestDir $newVersionDir -PackageId $PackageId -BranchName $branchName)) {
