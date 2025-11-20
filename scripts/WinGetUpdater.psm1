@@ -472,7 +472,15 @@ function Test-InstallerUrl {
 function Test-PackageUpdate {
     <#
     .SYNOPSIS
-        Check for package updates
+        Check for package updates using a multi-step verification process
+
+    .DESCRIPTION
+        Automated version check workflow:
+        1. Checks latest version in microsoft/winget-pkgs repository
+        2. Checks latest version from package homepage/source (GitHub releases or custom script)
+        3. Compares versions to determine if update is available
+        4. Returns version info only if source version is newer than winget-pkgs version
+        5. Skips if versions are equal or source version is older
 
     .PARAMETER CheckverPath
         Path to checkver configuration file
@@ -524,10 +532,25 @@ function Test-PackageUpdate {
         Write-Host "Latest version found: $latestVersion" -ForegroundColor Green
 
         # Compare versions
-        if ($wingetLatestVersion -and $wingetLatestVersion -eq $latestVersion) {
-            Write-Host "✅ Version $latestVersion already exists in microsoft/winget-pkgs" -ForegroundColor Green
-            Write-Host "⏭️  No update needed, skipping" -ForegroundColor Yellow
-            return $null
+        if ($wingetLatestVersion) {
+            $comparison = Compare-Version -Version1 $latestVersion -Version2 $wingetLatestVersion
+
+            if ($comparison -eq 0) {
+                Write-Host "✅ Version $latestVersion already exists in microsoft/winget-pkgs" -ForegroundColor Green
+                Write-Host "⏭️  No update needed, skipping" -ForegroundColor Yellow
+                return $null
+            }
+            elseif ($comparison -lt 0) {
+                Write-Host "⚠️  Source version ($latestVersion) is older than winget-pkgs version ($wingetLatestVersion)" -ForegroundColor Yellow
+                Write-Host "⏭️  No update needed, skipping" -ForegroundColor Yellow
+                return $null
+            }
+            else {
+                Write-Host "🆕 New version available: $latestVersion (current: $wingetLatestVersion)" -ForegroundColor Green
+            }
+        }
+        else {
+            Write-Host "🆕 New package to be added: $latestVersion" -ForegroundColor Green
         }
 
         # Get installer URLs

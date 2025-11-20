@@ -50,44 +50,61 @@ jobs:
             Write-Host "========================================" -ForegroundColor Cyan
 
             try {
-              # Check for updates
+              # Automated Update Flow:
+              # Step 1: Check latest version in microsoft/winget-pkgs
+              # Step 2: Check latest version from package homepage/source
+              # Step 3: Compare versions to determine if update is needed
+              # Step 4: Check if PR already exists for this version
+              # Step 5: Create manifest update and PR if all checks pass
+
+              # Cleanup any previous version info
               if (Test-Path "version_info.json") {
                 Remove-Item "version_info.json" -Force
               }
 
+              # Steps 1-3: Check for updates (checks both winget-pkgs and source)
               pwsh -File scripts/Check-Version.ps1 "$($file.FullName)" "version_info.json"
 
               if ($LASTEXITCODE -eq 0 -and (Test-Path "version_info.json")) {
+                # Step 3: Parse version information
                 $versionInfo = Get-Content "version_info.json" -Raw | ConvertFrom-Json
                 $packageId = $versionInfo.packageIdentifier
                 $version = $versionInfo.version
 
-                Write-Host "✨ New version found: $packageId $version" -ForegroundColor Green
+                Write-Host "✨ New version detected: $packageId $version" -ForegroundColor Green
 
-                # Check for existing PRs
-                Write-Host "🔍 Checking for existing PRs..." -ForegroundColor Cyan
+                # Step 4: Check for existing PRs before creating a new one
+                Write-Host "🔍 Checking for existing PRs in microsoft/winget-pkgs..." -ForegroundColor Cyan
                 $searchQuery = "$packageId $version in:title"
-                $prs = gh pr list --repo microsoft/winget-pkgs --search $searchQuery --state all --json number,title,state --limit 5 2>$null | ConvertFrom-Json
+                $prs = gh pr list --repo microsoft/winget-pkgs --search $searchQuery --state all --json number,title,state --limit 10 2>$null | ConvertFrom-Json
 
                 $shouldSkip = $false
 
                 if ($prs -and $prs.Count -gt 0) {
+                  Write-Host "   Found $($prs.Count) potential matching PR(s)" -ForegroundColor Gray
                   foreach ($pr in $prs) {
                     if ($pr.title -match [regex]::Escape($packageId) -and $pr.title -match [regex]::Escape($version)) {
                       if ($pr.state -in @("OPEN", "MERGED")) {
-                        Write-Host "⏭️  PR #$($pr.number) is $($pr.state) - skipping" -ForegroundColor Yellow
+                        Write-Host "   ⚠️  PR #$($pr.number) is already $($pr.state): $($pr.title)" -ForegroundColor Yellow
+                        Write-Host "⏭️  Skipping PR creation to avoid duplicates" -ForegroundColor Yellow
                         $shouldSkip = $true
                         break
                       }
+                      elseif ($pr.state -eq "CLOSED") {
+                        Write-Host "   ℹ️  PR #$($pr.number) was closed: $($pr.title)" -ForegroundColor Gray
+                      }
                     }
                   }
+                } else {
+                  Write-Host "   ✓ No existing PRs found" -ForegroundColor Green
                 }
 
+                # Step 5: Create manifest update and PR if no conflicts
                 if (-not $shouldSkip) {
-                  Write-Host "🚀 Updating manifest and creating PR..." -ForegroundColor Green
+                  Write-Host "🚀 Creating manifest update and PR..." -ForegroundColor Green
                   pwsh -File scripts/Update-Manifest.ps1 "$($file.FullName)" "$packageId" "$version"
                 } else {
-                  Write-Host "⏭️  Skipping update" -ForegroundColor Yellow
+                  Write-Host "⏭️  Skipped manifest update" -ForegroundColor Yellow
                 }
 
                 Remove-Item "version_info.json" -Force -ErrorAction SilentlyContinue
