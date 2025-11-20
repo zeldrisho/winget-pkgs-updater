@@ -246,12 +246,20 @@ try {
         Write-Host "  Updating: $($file.Name)" -ForegroundColor Gray
 
         # Update manifest with all extracted data
-        Update-ManifestYaml -FilePath $destFile `
-            -OldVersion $latestVersion `
-            -NewVersion $Version `
-            -Hash $installerHash `
-            -ProductCode $productCode `
-            -SignatureSha256 $signatureSha256
+        $updateParams = @{
+            FilePath = $destFile
+            OldVersion = $latestVersion
+            NewVersion = $Version
+            Hash = $installerHash
+            ProductCode = $productCode
+            SignatureSha256 = $signatureSha256
+        }
+
+        if (-not $installerUrls) {
+            $updateParams['InstallerUrl'] = $primaryUrl
+        }
+
+        Update-ManifestYaml @updateParams
     }
 
     # Cleanup template directory

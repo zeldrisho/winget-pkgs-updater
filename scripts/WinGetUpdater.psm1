@@ -987,7 +987,9 @@ function Update-ManifestYaml {
 
         [string]$ProductCode,
 
-        [string]$SignatureSha256
+        [string]$SignatureSha256,
+
+        [string]$InstallerUrl
     )
 
     $content = Get-Content $FilePath -Raw
@@ -997,6 +999,12 @@ function Update-ManifestYaml {
 
     # Replace all version occurrences (for URLs, paths, etc.)
     $content = $content -replace [regex]::Escape($OldVersion), $NewVersion
+
+    # Replace InstallerUrl if provided
+    if ($InstallerUrl) {
+        $escapedUrl = $InstallerUrl.Replace('$', '$$')
+        $content = $content -replace "InstallerUrl:\s+.*", "InstallerUrl: $escapedUrl"
+    }
 
     # Replace hash if provided
     if ($Hash) {
