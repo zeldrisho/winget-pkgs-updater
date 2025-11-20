@@ -1287,10 +1287,7 @@ function New-PullRequest {
         [string]$Version,
 
         [Parameter(Mandatory)]
-        [string]$BranchName,
-
-        [Parameter()]
-        [int[]]$CloseIssues = @()
+        [string]$BranchName
     )
 
     try {
@@ -1304,10 +1301,41 @@ function New-PullRequest {
             $repoName = "zeldrisho/winget-pkgs-updater"
         }
 
-        # Build body with close issues if provided
+        # Automatically search for related open issues on microsoft/winget-pkgs
+        Write-Host "🔍 Searching for related issues on microsoft/winget-pkgs..." -ForegroundColor Cyan
+        $relatedIssues = @()
+
+        try {
+            # Search for issues mentioning the package name
+            $searchQuery = "$PackageId in:title,body is:issue is:open"
+            $issues = gh issue list --repo microsoft/winget-pkgs --search $searchQuery --json number,title,body --limit 20 2>$null | ConvertFrom-Json
+
+            if ($issues -and $issues.Count -gt 0) {
+                Write-Host "   Found $($issues.Count) potential related issue(s)" -ForegroundColor Gray
+
+                foreach ($issue in $issues) {
+                    # Check if issue mentions the package or version
+                    $issueText = "$($issue.title) $($issue.body)".ToLower()
+                    $packageLower = $PackageId.ToLower()
+
+                    if ($issueText -match [regex]::Escape($packageLower)) {
+                        Write-Host "   ✓ Will close issue #$($issue.number): $($issue.title)" -ForegroundColor Green
+                        $relatedIssues += $issue.number
+                    }
+                }
+            }
+            else {
+                Write-Host "   No related issues found" -ForegroundColor Gray
+            }
+        }
+        catch {
+            Write-Warning "Could not search for related issues: $_"
+        }
+
+        # Build body with close issues if found
         $closeSection = ""
-        if ($CloseIssues -and $CloseIssues.Count -gt 0) {
-            $issueRefs = $CloseIssues | ForEach-Object { "Close #$_" }
+        if ($relatedIssues.Count -gt 0) {
+            $issueRefs = $relatedIssues | ForEach-Object { "Close #$_" }
             $closeSection = ($issueRefs -join "`n") + "`n`n"
         }
 

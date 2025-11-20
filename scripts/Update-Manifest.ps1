@@ -218,14 +218,7 @@ try {
         Write-Host "`nCreating pull request..." -ForegroundColor Cyan
         $forkOwner = $forkRepo.Split('/')[0]
 
-        # Check if config has closeIssues specified
-        $closeIssues = @()
-        if ($config.closeIssues) {
-            $closeIssues = $config.closeIssues
-            Write-Host "Will close issues: #$($closeIssues -join ', #')" -ForegroundColor Cyan
-        }
-
-        if (-not (New-PullRequest -ForkOwner $forkOwner -PackageId $PackageId -Version $Version -BranchName $branchName -CloseIssues $closeIssues)) {
+        if (-not (New-PullRequest -ForkOwner $forkOwner -PackageId $PackageId -Version $Version -BranchName $branchName)) {
             throw "Failed to create pull request"
         }
     } else {
