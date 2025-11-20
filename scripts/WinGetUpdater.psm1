@@ -386,24 +386,31 @@ function Get-LatestVersionFromScript {
         $regex = $checkver.regex
         if ($regex) {
             if ($output -match $regex) {
-                # Apply replace if provided, otherwise use first capture group or full match
+                # Determine version based on available patterns
+                $version = $null
+
+                # Priority 1: Use replace pattern if provided
                 if ($checkver.replace) {
                     $replace = $checkver.replace
                     $version = $matches[0] -replace $regex, $replace
                 }
-                elseif ($matches.Count -gt 1 -and $matches[1]) {
-                    # Use first capture group if it exists
+                # Priority 2: Use named 'version' group if it exists
+                elseif ($matches.ContainsKey('version')) {
+                    $version = $matches['version']
+                }
+                # Priority 3: Use first capture group (numeric index 1)
+                elseif ($matches.ContainsKey(1)) {
                     $version = $matches[1]
                 }
+                # Priority 4: Use full match as fallback
                 else {
-                    # Use full match as fallback
                     $version = $matches[0]
                 }
 
-                # Extract metadata from named groups
+                # Extract metadata from named groups (excluding 'version')
                 $metadata = @{}
                 foreach ($key in $matches.Keys) {
-                    if ($key -ne 0 -and $key -is [string]) {
+                    if ($key -ne 0 -and $key -is [string] -and $key -ne 'version') {
                         $metadata[$key] = $matches[$key]
                     }
                 }
