@@ -1306,22 +1306,16 @@ function New-PullRequest {
         $relatedIssues = @()
 
         try {
-            # Search for issues mentioning the package name
-            $searchQuery = "$PackageId in:title,body is:issue is:open"
+            # Search for issues mentioning the package name and version in body
+            $searchQuery = "$PackageId $Version in:body is:issue is:open"
             $issues = gh issue list --repo microsoft/winget-pkgs --search $searchQuery --json number,title,body --limit 20 2>$null | ConvertFrom-Json
 
             if ($issues -and $issues.Count -gt 0) {
-                Write-Host "   Found $($issues.Count) potential related issue(s)" -ForegroundColor Gray
+                Write-Host "   Found $($issues.Count) related issue(s) mentioning package and version" -ForegroundColor Gray
 
                 foreach ($issue in $issues) {
-                    # Check if issue mentions the package or version
-                    $issueText = "$($issue.title) $($issue.body)".ToLower()
-                    $packageLower = $PackageId.ToLower()
-
-                    if ($issueText -match [regex]::Escape($packageLower)) {
-                        Write-Host "   ✓ Will close issue #$($issue.number): $($issue.title)" -ForegroundColor Green
-                        $relatedIssues += $issue.number
-                    }
+                    Write-Host "   ✓ Will close issue #$($issue.number): $($issue.title)" -ForegroundColor Green
+                    $relatedIssues += $issue.number
                 }
             }
             else {
