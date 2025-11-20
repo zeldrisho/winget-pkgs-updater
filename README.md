@@ -57,15 +57,16 @@ See **[docs/contributing.md](docs/contributing.md)** for detailed instructions o
 7. **Fetch manifests** - Download latest version folder from upstream via API
 8. **Download installers** - Download files for hash calculation
 9. **Calculate hashes** - InstallerSha256 + SignatureSha256 (MSIX) + ProductCode (MSI)
-10. **Update manifests** - Smart field updates:
+10. **Check duplicates** - Search for duplicate hashes in other packages (informational warning)
+11. **Update manifests** - Smart field updates:
     - **Always updated**: PackageVersion, InstallerSha256, InstallerUrl
     - **Conditionally updated**: ProductCode, ReleaseDate, ReleaseNotes (if exist in old manifest)
     - **Preserved**: All other fields (Publisher, License, Tags, etc.)
-11. **Validate manifests** - Run `winget validate --manifest` to verify correctness
+12. **Validate manifests** - Run `winget validate --manifest` to verify correctness
 
 #### Stage 3: Publish
-12. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
-13. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
+13. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
+14. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
 
 ## PR Management
 
@@ -88,6 +89,7 @@ See **[docs/contributing.md](docs/contributing.md)** for detailed instructions o
 ✅ Version detection (GitHub API and PowerShell scripts)
 ✅ Automatic package identifier and manifest path derivation
 ✅ Installer download and SHA256 calculation
+✅ Duplicate hash detection across microsoft/winget-pkgs
 ✅ Manifest fetching from microsoft/winget-pkgs
 ✅ YAML manifest updates with version replacement
 ✅ Manifest validation using `winget validate` before PR creation

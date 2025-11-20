@@ -1047,6 +1047,115 @@ function Test-WinGetManifest {
     }
 }
 
+function Test-DuplicateInstallerHash {
+    <#
+    .SYNOPSIS
+        Check if installer hash already exists in microsoft/winget-pkgs
+
+    .DESCRIPTION
+        Searches microsoft/winget-pkgs repository for duplicate SHA256 hashes.
+        Duplicate hashes may indicate:
+        - Same installer reused across versions (common for stable releases)
+        - Duplicate package entry (error)
+        - Hash collision (extremely rare)
+
+    .PARAMETER Hash
+        SHA256 hash to search for
+
+    .PARAMETER PackageId
+        Package identifier to exclude from duplicate check (current package)
+
+    .PARAMETER Version
+        Version being updated to (for logging purposes)
+
+    .RETURNS
+        Object with properties: HasDuplicate (bool), Matches (array)
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$Hash,
+
+        [Parameter(Mandatory)]
+        [string]$PackageId,
+
+        [Parameter(Mandatory)]
+        [string]$Version
+    )
+
+    try {
+        Write-Host "`nChecking for duplicate installer hashes..." -ForegroundColor Cyan
+
+        # Search for hash in microsoft/winget-pkgs using GitHub code search
+        $searchQuery = "$Hash repo:microsoft/winget-pkgs"
+        Write-Host "  Searching: $searchQuery" -ForegroundColor Gray
+
+        # Use gh CLI to search (more reliable than API for code search)
+        $searchResults = gh search code --repo microsoft/winget-pkgs "$Hash" --json path,repository 2>$null | ConvertFrom-Json
+
+        if (-not $searchResults -or $searchResults.Count -eq 0) {
+            Write-Host "  ✓ No duplicate hashes found" -ForegroundColor Green
+            return @{
+                HasDuplicate = $false
+                Matches = @()
+            }
+        }
+
+        # Parse results to extract package info
+        $matches = @()
+        foreach ($result in $searchResults) {
+            # Path format: manifests/x/Xyz/Package/1.2.3/Xyz.Package.installer.yaml
+            if ($result.path -match 'manifests/[^/]+/([^/]+/[^/]+)/([^/]+)/') {
+                $foundPackage = $matches[1] -replace '/', '.'
+                $foundVersion = $matches[2]
+
+                # Skip if it's the same package (same version is expected duplicate)
+                if ($foundPackage -eq $PackageId) {
+                    continue
+                }
+
+                $matches += @{
+                    PackageId = $foundPackage
+                    Version = $foundVersion
+                    Path = $result.path
+                }
+            }
+        }
+
+        if ($matches.Count -eq 0) {
+            Write-Host "  ✓ No duplicate hashes in other packages" -ForegroundColor Green
+            return @{
+                HasDuplicate = $false
+                Matches = @()
+            }
+        }
+
+        # Found duplicates in other packages - this is unusual
+        Write-Host "  ⚠️  Found duplicate hash in $($matches.Count) other package(s):" -ForegroundColor Yellow
+        foreach ($match in $matches) {
+            Write-Host "     - $($match.PackageId) version $($match.Version)" -ForegroundColor Gray
+            Write-Host "       Path: $($match.Path)" -ForegroundColor DarkGray
+        }
+
+        Write-Host "`n  ℹ️  This may indicate:" -ForegroundColor Cyan
+        Write-Host "     - Same installer used across different packages (vendor bundles)" -ForegroundColor Gray
+        Write-Host "     - Possible duplicate entry that should be consolidated" -ForegroundColor Gray
+        Write-Host "`n  ⚠️  Consider reviewing before creating PR" -ForegroundColor Yellow
+
+        return @{
+            HasDuplicate = $true
+            Matches = $matches
+        }
+    }
+    catch {
+        Write-Warning "Could not check for duplicate hashes: $_"
+        Write-Warning "Proceeding without duplicate check..."
+        return @{
+            HasDuplicate = $false
+            Matches = @()
+        }
+    }
+}
+
 #endregion
 
 #region GitHub API Operations
@@ -1686,6 +1795,7 @@ Export-ModuleMember -Function @(
     'Get-UpstreamManifest',
     'Update-ManifestYaml',
     'Test-WinGetManifest',
+    'Test-DuplicateInstallerHash',
     'Get-GitHubDefaultBranch',
     'Get-GitHubTreeFromCommit',
     'New-GitHubBlob',

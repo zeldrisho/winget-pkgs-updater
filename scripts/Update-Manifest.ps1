@@ -168,6 +168,13 @@ try {
         $installerHash = Get-FileSha256 -FilePath $tempInstaller
         Write-Host "✅ Calculated SHA256: $installerHash" -ForegroundColor Green
 
+        # Check for duplicate hashes (informational only)
+        $duplicateCheck = Test-DuplicateInstallerHash -Hash $installerHash -PackageId $PackageId -Version $Version
+        if ($duplicateCheck.HasDuplicate) {
+            Write-Host "`n⚠️  Note: Duplicate hash detected (see above). This is informational only." -ForegroundColor Yellow
+            Write-Host "   If this is unexpected, you may want to investigate before the PR is created." -ForegroundColor Gray
+        }
+
         # Extract ProductCode for MSI installers
         if ($installerExtension -eq '.msi') {
             Write-Host "`nExtracting ProductCode from MSI..." -ForegroundColor Cyan
