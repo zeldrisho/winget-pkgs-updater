@@ -478,6 +478,73 @@ function Test-InstallerUrl {
     }
 }
 
+function Test-ExistingPullRequest {
+    <#
+    .SYNOPSIS
+        Check if a PR already exists for this package version in microsoft/winget-pkgs
+
+    .DESCRIPTION
+        Searches for existing PRs matching the package identifier and version.
+        Returns skip status based on PR state:
+        - OPEN/MERGED: Skip (already submitted/accepted)
+        - CLOSED: Continue (allow retry)
+        - Not found: Continue (create new PR)
+
+    .PARAMETER PackageId
+        Package identifier to search for
+
+    .PARAMETER Version
+        Version number to search for
+
+    .RETURNS
+        $true if should skip (PR already exists as OPEN/MERGED), $false otherwise
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$PackageId,
+
+        [Parameter(Mandatory)]
+        [string]$Version
+    )
+
+    try {
+        Write-Host "🔍 Checking for existing PRs in microsoft/winget-pkgs..." -ForegroundColor Cyan
+
+        # Search for PRs with package and version in title
+        $searchQuery = "$PackageId $Version in:title"
+        $prs = gh pr list --repo microsoft/winget-pkgs --search $searchQuery --state all --json number,title,state --limit 10 2>$null | ConvertFrom-Json
+
+        if ($prs -and $prs.Count -gt 0) {
+            Write-Host "   Found $($prs.Count) potential matching PR(s)" -ForegroundColor Gray
+
+            foreach ($pr in $prs) {
+                # Check if PR title contains both package ID and version
+                if ($pr.title -match [regex]::Escape($PackageId) -and $pr.title -match [regex]::Escape($Version)) {
+                    if ($pr.state -in @("OPEN", "MERGED")) {
+                        Write-Host "   ⚠️  PR #$($pr.number) is already $($pr.state): $($pr.title)" -ForegroundColor Yellow
+                        Write-Host "⏭️  Skipping to avoid duplicates" -ForegroundColor Yellow
+                        return $true
+                    }
+                    elseif ($pr.state -eq "CLOSED") {
+                        Write-Host "   ℹ️  PR #$($pr.number) was closed: $($pr.title)" -ForegroundColor Gray
+                        Write-Host "   ✓ Allowing retry since PR was closed" -ForegroundColor Green
+                    }
+                }
+            }
+        }
+        else {
+            Write-Host "   ✓ No existing PRs found" -ForegroundColor Green
+        }
+
+        return $false
+    }
+    catch {
+        Write-Warning "Could not check for existing PRs: $_"
+        Write-Warning "Proceeding with caution..."
+        return $false
+    }
+}
+
 #endregion
 
 #region Main Functions
@@ -492,8 +559,9 @@ function Test-PackageUpdate {
         1. Checks latest version in microsoft/winget-pkgs repository
         2. Checks latest version from package homepage/source (GitHub releases or custom script)
         3. Compares versions to determine if update is available
-        4. Returns version info only if source version is newer than winget-pkgs version
-        5. Skips if versions are equal or source version is older
+        4. Checks for existing PRs to avoid duplicates (OPEN/MERGED = skip, CLOSED = retry)
+        5. Returns version info and creates JSON file only if all checks pass
+        6. Skips if versions are equal, source version is older, or PR already exists
 
     .PARAMETER CheckverPath
         Path to checkver configuration file
@@ -564,6 +632,12 @@ function Test-PackageUpdate {
         }
         else {
             Write-Host "🆕 New package to be added: $latestVersion" -ForegroundColor Green
+        }
+
+        # Check for existing PRs before proceeding
+        if (Test-ExistingPullRequest -PackageId $packageId -Version $latestVersion) {
+            Write-Host "⏭️  Skipping due to existing PR" -ForegroundColor Yellow
+            return $null
         }
 
         # Get installer URLs
@@ -1549,6 +1623,7 @@ Export-ModuleMember -Function @(
     'Get-LatestVersionFromScript',
     'Get-InstallerUrl',
     'Test-InstallerUrl',
+    'Test-ExistingPullRequest',
     'Test-PackageUpdate',
     'Get-FileSha256',
     'Get-WebFile',

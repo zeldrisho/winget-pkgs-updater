@@ -63,29 +63,29 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
 
 ### 3-Stage Pipeline
 
-#### Stage 1: Version Detection
+#### Stage 1: Version Detection & Validation
 1. **Auto-derive identifiers** - Extract packageIdentifier from filename
 2. **Query winget-pkgs** - Find latest published version via GitHub API
 3. **Run version check** - Execute PowerShell script or GitHub API query
-4. **Compare versions** - Exit with new version info if update available
-
-#### Stage 2: PR Gate Check
-5. **Search existing PRs** - Query microsoft/winget-pkgs for matching PRs
+4. **Compare versions** - Determine if update is available
+5. **Check existing PRs** - Query microsoft/winget-pkgs for matching PRs
    - **OPEN/MERGED** → Skip (already submitted/accepted)
-   - **CLOSED** → Check fork branch status
-     - Branch exists → Skip (avoid duplicate)
-     - Branch deleted → Continue (allow retry)
+   - **CLOSED** → Continue (allow retry)
+   - **Not found** → Continue (create new PR)
+6. **Output version_info.json** - Only if all checks pass
 
-#### Stage 3: Manifest Update
-6. **Fetch manifests** - Download latest version folder from upstream via API
-7. **Download installers** - Download files for hash calculation
-8. **Calculate hashes** - InstallerSha256 + SignatureSha256 (MSIX) + ProductCode (MSI)
-9. **Update manifests** - Smart field updates:
+#### Stage 2: Manifest Update
+7. **Fetch manifests** - Download latest version folder from upstream via API
+8. **Download installers** - Download files for hash calculation
+9. **Calculate hashes** - InstallerSha256 + SignatureSha256 (MSIX) + ProductCode (MSI)
+10. **Update manifests** - Smart field updates:
     - **Always updated**: PackageVersion, InstallerSha256, InstallerUrl
     - **Conditionally updated**: ProductCode, ReleaseDate, ReleaseNotes (if exist in old manifest)
     - **Preserved**: All other fields (Publisher, License, Tags, etc.)
-10. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
-11. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
+
+#### Stage 3: Publish
+11. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
+12. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
 
 ## PR Management
 
