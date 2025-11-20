@@ -32,6 +32,8 @@ checkver:
 installerUrlTemplate: "https://example.com/{version}/installer.exe"
 ```
 
+**Note:** Related issues are automatically detected and closed when creating PRs by searching microsoft/winget-pkgs for open issues mentioning both the package name and version in the issue body.
+
 ### Auto-Derived Fields
 
 The following fields are automatically derived and should **NOT** be included:

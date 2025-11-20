@@ -233,27 +233,45 @@ function Get-LatestVersion {
         throw "Cannot get latest version from empty list"
     }
 
-    # Sort versions using .NET Version class or custom comparison
-    $sortedVersions = $Versions | Sort-Object -Property @{
-        Expression = {
-            try {
-                # Try to parse as version
-                [version]$_
+    # Custom version comparison that handles any number of components
+    $latestVersion = $Versions[0]
+
+    for ($i = 1; $i -lt $Versions.Count; $i++) {
+        $current = $Versions[$i]
+
+        # Split versions into numeric components
+        $latestParts = @($latestVersion -split '\.' | ForEach-Object { try { [int]$_ } catch { 0 } })
+        $currentParts = @($current -split '\.' | ForEach-Object { try { [int]$_ } catch { 0 } })
+
+        # Compare component by component
+        $maxLength = [Math]::Max($latestParts.Count, $currentParts.Count)
+        $isNewer = $false
+
+        for ($j = 0; $j -lt $maxLength; $j++) {
+            $latestVal = if ($j -lt $latestParts.Count) { $latestParts[$j] } else { 0 }
+            $currentVal = if ($j -lt $currentParts.Count) { $currentParts[$j] } else { 0 }
+
+            if ($currentVal -gt $latestVal) {
+                $isNewer = $true
+                break
             }
-            catch {
-                # Fallback to string comparison
-                $_
+            elseif ($currentVal -lt $latestVal) {
+                break
             }
         }
-    } -Descending
 
-    return $sortedVersions[0]
+        if ($isNewer) {
+            $latestVersion = $current
+        }
+    }
+
+    return $latestVersion
 }
 
 function Compare-Version {
     <#
     .SYNOPSIS
-        Compare two version strings
+        Compare two version strings (supports any number of components)
     #>
     param(
         [Parameter(Mandatory)]
@@ -263,20 +281,26 @@ function Compare-Version {
         [string]$Version2
     )
 
-    try {
-        $v1 = [version]$Version1
-        $v2 = [version]$Version2
+    # Split versions into numeric components
+    $v1Parts = @($Version1 -split '\.' | ForEach-Object { try { [int]$_ } catch { 0 } })
+    $v2Parts = @($Version2 -split '\.' | ForEach-Object { try { [int]$_ } catch { 0 } })
 
-        if ($v1 -lt $v2) { return -1 }
-        elseif ($v1 -gt $v2) { return 1 }
-        else { return 0 }
+    # Compare component by component
+    $maxLength = [Math]::Max($v1Parts.Count, $v2Parts.Count)
+
+    for ($i = 0; $i -lt $maxLength; $i++) {
+        $v1Val = if ($i -lt $v1Parts.Count) { $v1Parts[$i] } else { 0 }
+        $v2Val = if ($i -lt $v2Parts.Count) { $v2Parts[$i] } else { 0 }
+
+        if ($v1Val -lt $v2Val) {
+            return -1
+        }
+        elseif ($v1Val -gt $v2Val) {
+            return 1
+        }
     }
-    catch {
-        # Fallback to string comparison
-        if ($Version1 -lt $Version2) { return -1 }
-        elseif ($Version1 -gt $Version2) { return 1 }
-        else { return 0 }
-    }
+
+    return 0
 }
 
 function Get-LatestVersionFromGitHub {
@@ -362,18 +386,31 @@ function Get-LatestVersionFromScript {
         $regex = $checkver.regex
         if ($regex) {
             if ($output -match $regex) {
-                $version = $matches[0]
+                # Determine version based on available patterns
+                $version = $null
 
-                # Apply replace if provided
+                # Priority 1: Use replace pattern if provided
                 if ($checkver.replace) {
                     $replace = $checkver.replace
-                    $version = $version -replace $regex, $replace
+                    $version = $matches[0] -replace $regex, $replace
+                }
+                # Priority 2: Use named 'version' group if it exists
+                elseif ($matches.ContainsKey('version')) {
+                    $version = $matches['version']
+                }
+                # Priority 3: Use first capture group (numeric index 1)
+                elseif ($matches.ContainsKey(1)) {
+                    $version = $matches[1]
+                }
+                # Priority 4: Use full match as fallback
+                else {
+                    $version = $matches[0]
                 }
 
-                # Extract metadata from named groups
+                # Extract metadata from named groups (excluding 'version')
                 $metadata = @{}
                 foreach ($key in $matches.Keys) {
-                    if ($key -ne 0 -and $key -is [string]) {
+                    if ($key -ne 0 -and $key -is [string] -and $key -ne 'version') {
                         $metadata[$key] = $matches[$key]
                     }
                 }
@@ -448,7 +485,15 @@ function Test-InstallerUrl {
 function Test-PackageUpdate {
     <#
     .SYNOPSIS
-        Check for package updates
+        Check for package updates using a multi-step verification process
+
+    .DESCRIPTION
+        Automated version check workflow:
+        1. Checks latest version in microsoft/winget-pkgs repository
+        2. Checks latest version from package homepage/source (GitHub releases or custom script)
+        3. Compares versions to determine if update is available
+        4. Returns version info only if source version is newer than winget-pkgs version
+        5. Skips if versions are equal or source version is older
 
     .PARAMETER CheckverPath
         Path to checkver configuration file
@@ -500,10 +545,25 @@ function Test-PackageUpdate {
         Write-Host "Latest version found: $latestVersion" -ForegroundColor Green
 
         # Compare versions
-        if ($wingetLatestVersion -and $wingetLatestVersion -eq $latestVersion) {
-            Write-Host "✅ Version $latestVersion already exists in microsoft/winget-pkgs" -ForegroundColor Green
-            Write-Host "⏭️  No update needed, skipping" -ForegroundColor Yellow
-            return $null
+        if ($wingetLatestVersion) {
+            $comparison = Compare-Version -Version1 $latestVersion -Version2 $wingetLatestVersion
+
+            if ($comparison -eq 0) {
+                Write-Host "✅ Version $latestVersion already exists in microsoft/winget-pkgs" -ForegroundColor Green
+                Write-Host "⏭️  No update needed, skipping" -ForegroundColor Yellow
+                return $null
+            }
+            elseif ($comparison -lt 0) {
+                Write-Host "⚠️  Source version ($latestVersion) is older than winget-pkgs version ($wingetLatestVersion)" -ForegroundColor Yellow
+                Write-Host "⏭️  No update needed, skipping" -ForegroundColor Yellow
+                return $null
+            }
+            else {
+                Write-Host "🆕 New version available: $latestVersion (current: $wingetLatestVersion)" -ForegroundColor Green
+            }
+        }
+        else {
+            Write-Host "🆕 New package to be added: $latestVersion" -ForegroundColor Green
         }
 
         # Get installer URLs
@@ -826,18 +886,18 @@ function Update-ManifestYaml {
 
     # Replace hash if provided
     if ($Hash) {
-        $content = $content -replace "InstallerSha256:\s+[A-F0-9]{64}", "InstallerSha256: $Hash"
+        $content = $content -replace "InstallerSha256:\s+[A-Fa-f0-9]{64}", "InstallerSha256: $Hash"
     }
 
     # Replace ProductCode if provided and exists in manifest
     if ($ProductCode -and $content -match 'ProductCode:') {
-        $content = $content -replace "ProductCode:\s+\{[A-F0-9\-]+\}", "ProductCode: $ProductCode"
+        $content = $content -replace "ProductCode:\s+\{[A-Fa-f0-9\-]+\}", "ProductCode: $ProductCode"
         Write-Host "  ✓ Updated ProductCode: $ProductCode" -ForegroundColor Green
     }
 
     # Replace SignatureSha256 if provided and exists in manifest
     if ($SignatureSha256 -and $content -match 'SignatureSha256:') {
-        $content = $content -replace "SignatureSha256:\s+[A-F0-9]{64}", "SignatureSha256: $SignatureSha256"
+        $content = $content -replace "SignatureSha256:\s+[A-Fa-f0-9]{64}", "SignatureSha256: $SignatureSha256"
         Write-Host "  ✓ Updated SignatureSha256: $SignatureSha256" -ForegroundColor Green
     }
 
@@ -1319,19 +1379,57 @@ function New-PullRequest {
 
     try {
         $title = "New version: $PackageId version $Version"
-        $body = @"
-## Update Information
 
-- **Package**: $PackageId
-- **Version**: $Version
-- **Submitted by**: Automated WinGet Package Updater
+        # Get workflow run information from environment
+        $runNumber = $env:GITHUB_RUN_NUMBER
+        $runId = $env:GITHUB_RUN_ID
+        $repoName = $env:GITHUB_REPOSITORY
+        if (-not $repoName) {
+            $repoName = "zeldrisho/winget-pkgs-updater"
+        }
 
-This PR was created automatically by the WinGet Package Updater.
-"@
+        # Automatically search for related open issues on microsoft/winget-pkgs
+        Write-Host "🔍 Searching for related issues on microsoft/winget-pkgs..." -ForegroundColor Cyan
+        $relatedIssues = @()
+
+        try {
+            # Search for issues mentioning the package name and version in body
+            $searchQuery = "$PackageId $Version in:body is:issue is:open"
+            $issues = gh issue list --repo microsoft/winget-pkgs --search $searchQuery --json number,title,body --limit 20 2>$null | ConvertFrom-Json
+
+            if ($issues -and $issues.Count -gt 0) {
+                Write-Host "   Found $($issues.Count) related issue(s) mentioning package and version" -ForegroundColor Gray
+
+                foreach ($issue in $issues) {
+                    Write-Host "   ✓ Will close issue #$($issue.number): $($issue.title)" -ForegroundColor Green
+                    $relatedIssues += $issue.number
+                }
+            }
+            else {
+                Write-Host "   No related issues found" -ForegroundColor Gray
+            }
+        }
+        catch {
+            Write-Warning "Could not search for related issues: $_"
+        }
+
+        # Build body with close issues if found
+        $closeSection = ""
+        if ($relatedIssues.Count -gt 0) {
+            $issueRefs = $relatedIssues | ForEach-Object { "Close #$_" }
+            $closeSection = ($issueRefs -join "`n") + "`n`n"
+        }
+
+        # Create initial body (PR number will be added after creation)
+        $body = "${closeSection}Automated by [$repoName](https://github.com/$repoName)"
+        if ($runNumber -and $runId) {
+            $body += " in workflow run [#$runNumber](https://github.com/$repoName/actions/runs/$runId)"
+        }
+        $body += "`n"
 
         Write-Host "Creating pull request..." -ForegroundColor Cyan
 
-        $pr = gh pr create `
+        $prUrl = gh pr create `
             --repo microsoft/winget-pkgs `
             --head "$ForkOwner`:$BranchName" `
             --title $title `
@@ -1339,7 +1437,23 @@ This PR was created automatically by the WinGet Package Updater.
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host "✅ Pull request created successfully!" -ForegroundColor Green
-            Write-Host "PR URL: $pr" -ForegroundColor Cyan
+            Write-Host "PR URL: $prUrl" -ForegroundColor Cyan
+
+            # Extract PR number from URL and update body with CodeFlow link
+            if ($prUrl -match '/pull/(\d+)') {
+                $prNumber = $matches[1]
+                $codeflowLink = "`n###### Microsoft Reviewers: [Open in CodeFlow](https://microsoft.github.io/open-pr/?codeflow=https://github.com/microsoft/winget-pkgs/pull/$prNumber)"
+
+                $updatedBody = $body + $codeflowLink
+
+                # Update PR body with CodeFlow link
+                gh pr edit $prNumber --repo microsoft/winget-pkgs --body $updatedBody 2>&1 | Out-Null
+
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "✓ Added CodeFlow link to PR" -ForegroundColor Green
+                }
+            }
+
             return $true
         }
         else {

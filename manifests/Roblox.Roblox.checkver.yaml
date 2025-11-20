@@ -15,5 +15,5 @@ checkver:
     }
     
     Write-Output "$version|$clientVersionUpload"
-  regex: "(?P<version>[\\d\\.]+)\\|(?P<clientVersionUpload>version-[a-f0-9]+)"
+  regex: "(?<version>[\\d\\.]+)\\|(?<clientVersionUpload>version-[a-f0-9]+)"
 installerUrlTemplate: "https://setup.rbxcdn.com/{clientVersionUpload}-RobloxPlayerInstaller.exe"

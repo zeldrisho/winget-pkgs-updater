@@ -18,6 +18,6 @@ checkver:
     $uri2 = "https://aka.ms/vs/$majorVersion/release/vs_enterprise.exe"
     $response = (Invoke-WebRequest $uri2).BaseResponse.RequestMessage.RequestUri.AbsolutePath
     Write-Output "$version|$displayDate|$response"
-  regex: "(?P<version>[\\d.]+)\\|(?P<displayDate>[^\\|]+)\\|/download/pr/(?P<Uuid>[\\w-]+)/(?P<Hash>[\\w]+)/"
+  regex: "(?<version>[\\d.]+)\\|(?<displayDate>[^\\|]+)\\|/download/pr/(?<Uuid>[\\w-]+)/(?<Hash>[\\w]+)/"
 
 installerUrlTemplate: "https://download.visualstudio.microsoft.com/download/pr/{Uuid}/{Hash}/vs_Enterprise.exe"

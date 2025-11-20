@@ -11,6 +11,6 @@ checkver:
         Write-Output $_.Exception.Response.Headers.Location.OriginalString
       }
     }
-  regex: ZaloSetup-([\d\.]+)\.exe
+  regex: ZaloSetup-([\d.]+)\.exe
 
 installerUrlTemplate: https://res-zaloapp-aka.zdn.vn/win/ZaloSetup-{version}.exe

@@ -6,8 +6,8 @@ checkver:
     $sorted = $csv | Sort-Object -Property 'Date' -Descending
     $latest = ($sorted -match '/v(?<shortver>[\d.]+)/ParaView-([\d.]+)-Windows-Python(?<pythonver>[\d.]+)-msvc(?<msvcver>\d+)-AMD64\.msi' | Select-Object -First 1).Path
     Write-Output $latest
-  regex: "/v[\\d.]+/ParaView-(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)-Windows-Python(?P<pythonver>[\\d.]+)-msvc(?P<msvcver>\\d+)-AMD64\\.msi"
-  replace: "${1}.${2}.${3}"
+  regex: "/v[\\d.]+/ParaView-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-Windows-Python(?<pythonver>[\\d.]+)-msvc(?<msvcver>\\d+)-AMD64\\.msi"
+  replace: "${major}.${minor}.${patch}"
 
 releaseNotesScript: |
   $version = '{version}'

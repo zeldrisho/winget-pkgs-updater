@@ -66,7 +66,7 @@ checkver:
         Write-Error "Could not parse RC version: $rcVersion"
         exit 1
     }
-  regex: "(?P<version>[\\d\\.]+)\\|(?P<rcversion>[^\\|]+)\\|(?P<buildx64>[^\\|]+)\\|(?P<buildx86>[^\\|]+)\\|(?P<buildarm64>[^\\|]+)\\|(?P<releasenotes>[^\\|]*)\\|(?P<releasenotesurl>.*)"
+  regex: "(?<version>[\\d\\.]+)\\|(?<rcversion>[^\\|]+)\\|(?<buildx64>[^\\|]+)\\|(?<buildx86>[^\\|]+)\\|(?<buildarm64>[^\\|]+)\\|(?<releasenotes>[^\\|]*)\\|(?<releasenotesurl>.*)"
 
 installerUrlTemplate:
   x64: "https://unikey.org/assets/release/unikey{rcversion}-{buildx64}-win64.zip"
