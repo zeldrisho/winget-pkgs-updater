@@ -386,12 +386,18 @@ function Get-LatestVersionFromScript {
         $regex = $checkver.regex
         if ($regex) {
             if ($output -match $regex) {
-                $version = $matches[0]
-
-                # Apply replace if provided
+                # Apply replace if provided, otherwise use first capture group or full match
                 if ($checkver.replace) {
                     $replace = $checkver.replace
-                    $version = $version -replace $regex, $replace
+                    $version = $matches[0] -replace $regex, $replace
+                }
+                elseif ($matches.Count -gt 1 -and $matches[1]) {
+                    # Use first capture group if it exists
+                    $version = $matches[1]
+                }
+                else {
+                    # Use full match as fallback
+                    $version = $matches[0]
                 }
 
                 # Extract metadata from named groups

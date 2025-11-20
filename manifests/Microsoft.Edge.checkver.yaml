@@ -25,7 +25,7 @@ checkver:
     }
     
     Write-Output "$version|$($guids['x86'])|$($guids['x64'])|$($guids['arm64'])"
-  regex: "(?P<version>[\\d\\.]+)\\|(?P<guid_x86>[a-f0-9\\-]+)\\|(?P<guid_x64>[a-f0-9\\-]+)\\|(?P<guid_arm64>[a-f0-9\\-]+)"
+  regex: "(?<version>[\\d\\.]+)\\|(?<guid_x86>[a-f0-9\\-]+)\\|(?<guid_x64>[a-f0-9\\-]+)\\|(?<guid_arm64>[a-f0-9\\-]+)"
 
 installerUrlTemplate:
   x86: "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/{guid_x86}/MicrosoftEdgeEnterpriseX86.msi"
