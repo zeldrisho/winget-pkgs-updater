@@ -750,7 +750,17 @@ function Get-FileSha256 {
 function Get-WebFile {
     <#
     .SYNOPSIS
-        Download a file from URL
+        Download a file from URL and detect redirects
+
+    .DESCRIPTION
+        Downloads a file and returns information about the final URL after redirects.
+        This helps identify vanity URLs that redirect to the actual binary.
+
+    .OUTPUTS
+        Returns a hashtable with:
+        - Success: Boolean indicating if download succeeded
+        - FinalUrl: The final URL after following redirects
+        - WasRedirected: Boolean indicating if the URL was redirected
     #>
     param(
         [Parameter(Mandatory)]
@@ -762,12 +772,42 @@ function Get-WebFile {
 
     try {
         Write-Verbose "Downloading: $Url"
-        Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
-        return $true
+
+        # First, make a request to get the response headers and final URL
+        $response = Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
+
+        # Get the final URL after redirects
+        $finalUrl = $response.BaseResponse.ResponseUri.AbsoluteUri
+        if (-not $finalUrl) {
+            # Fallback for different PowerShell versions
+            $finalUrl = $response.BaseResponse.RequestMessage.RequestUri.AbsoluteUri
+        }
+        if (-not $finalUrl) {
+            # If still null, use original URL
+            $finalUrl = $Url
+        }
+
+        $wasRedirected = $finalUrl -ne $Url
+
+        if ($wasRedirected) {
+            Write-Host "  ℹ️  URL redirected:" -ForegroundColor Cyan
+            Write-Host "    From: $Url" -ForegroundColor Gray
+            Write-Host "    To:   $finalUrl" -ForegroundColor Gray
+        }
+
+        return @{
+            Success = $true
+            FinalUrl = $finalUrl
+            WasRedirected = $wasRedirected
+        }
     }
     catch {
         Write-Warning "Failed to download $Url : $_"
-        return $false
+        return @{
+            Success = $false
+            FinalUrl = $Url
+            WasRedirected = $false
+        }
     }
 }
 

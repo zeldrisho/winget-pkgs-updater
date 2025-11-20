@@ -8,6 +8,7 @@ Automated tool to check for new package versions and create pull requests to [mi
 - 🤖 Auto-derived package identifiers and manifest paths from filenames
 - 📦 Smart manifest updates (preserves existing fields, updates only what's needed)
 - 🔐 Automatic hash calculation (InstallerSha256, SignatureSha256, ProductCode)
+- 🔗 Vanity URL detection (identifies URLs that redirect to actual binaries)
 - 🔍 Smart PR management (skip OPEN/MERGED, retry CLOSED)
 - 📝 GitHub metadata auto-fetch (ReleaseNotes, ReleaseNotesUrl)
 - 🎯 Multi-architecture support with MSIX/MSI handling
@@ -56,17 +57,18 @@ See **[docs/contributing.md](docs/contributing.md)** for detailed instructions o
 #### Stage 2: Manifest Update
 7. **Fetch manifests** - Download latest version folder from upstream via API
 8. **Download installers** - Download files for hash calculation
-9. **Calculate hashes** - InstallerSha256 + SignatureSha256 (MSIX) + ProductCode (MSI)
-10. **Check duplicates** - Search for duplicate hashes in other packages (informational warning)
-11. **Update manifests** - Smart field updates:
+9. **Detect redirects** - Identify vanity URLs that redirect to actual binaries
+10. **Calculate hashes** - InstallerSha256 + SignatureSha256 (MSIX) + ProductCode (MSI)
+11. **Check duplicates** - Search for duplicate hashes in other packages (informational warning)
+12. **Update manifests** - Smart field updates:
     - **Always updated**: PackageVersion, InstallerSha256, InstallerUrl
     - **Conditionally updated**: ProductCode, ReleaseDate, ReleaseNotes (if exist in old manifest)
     - **Preserved**: All other fields (Publisher, License, Tags, etc.)
-12. **Validate manifests** - Run `winget validate --manifest` to verify correctness
+13. **Validate manifests** - Run `winget validate --manifest` to verify correctness
 
 #### Stage 3: Publish
-13. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
-14. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
+14. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
+15. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
 
 ## PR Management
 
@@ -89,6 +91,7 @@ See **[docs/contributing.md](docs/contributing.md)** for detailed instructions o
 ✅ Version detection (GitHub API and PowerShell scripts)
 ✅ Automatic package identifier and manifest path derivation
 ✅ Installer download and SHA256 calculation
+✅ Vanity URL detection and redirect tracking
 ✅ Duplicate hash detection across microsoft/winget-pkgs
 ✅ Manifest fetching from microsoft/winget-pkgs
 ✅ YAML manifest updates with version replacement
