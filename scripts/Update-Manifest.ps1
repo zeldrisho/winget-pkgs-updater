@@ -91,6 +91,28 @@ try {
 
     Write-Host "Fork Repository: $forkRepo`n" -ForegroundColor Cyan
 
+    # Try to load metadata from version_info.json if available
+    $metadata = @{}
+    if (Test-Path "version_info.json") {
+        try {
+            $versionInfo = Get-Content "version_info.json" -Raw | ConvertFrom-Json
+            if ($versionInfo.metadata) {
+                $metadata = @{}
+                foreach ($property in $versionInfo.metadata.PSObject.Properties) {
+                    $metadata[$property.Name] = $property.Value
+                }
+                Write-Host "Loaded metadata from version_info.json:" -ForegroundColor Cyan
+                foreach ($key in $metadata.Keys) {
+                    Write-Host "  $key = $($metadata[$key])" -ForegroundColor Gray
+                }
+                Write-Host ""
+            }
+        }
+        catch {
+            Write-Warning "Could not load metadata from version_info.json: $_"
+        }
+    }
+
     # Get installer URL
     $installerUrlTemplate = $config.installerUrlTemplate
 
@@ -101,6 +123,12 @@ try {
         foreach ($arch in $installerUrlTemplate.Keys) {
             $url = $installerUrlTemplate[$arch] -replace '\{version\}', $Version
             $url = $url -replace '\{versionShort\}', ($Version -replace '\.0$', '')
+
+            # Replace metadata placeholders
+            foreach ($key in $metadata.Keys) {
+                $url = $url -replace "\{$key\}", $metadata[$key]
+            }
+
             $installerUrls[$arch] = $url
             Write-Host "  $arch : $url" -ForegroundColor Gray
         }
@@ -112,6 +140,12 @@ try {
         # Single architecture
         $primaryUrl = $installerUrlTemplate -replace '\{version\}', $Version
         $primaryUrl = $primaryUrl -replace '\{versionShort\}', ($Version -replace '\.0$', '')
+
+        # Replace metadata placeholders
+        foreach ($key in $metadata.Keys) {
+            $primaryUrl = $primaryUrl -replace "\{$key\}", $metadata[$key]
+        }
+
         $installerUrls = $null
         Write-Host "Installer URL: $primaryUrl" -ForegroundColor Gray
     }
