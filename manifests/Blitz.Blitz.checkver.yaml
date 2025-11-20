@@ -6,6 +6,6 @@ checkver:
     } catch {
         $_.Exception.Response.Headers.Location.OriginalString
     }
-  regex: "([\\d.]+).exe"
+  regex: "([\\d.]+)\\.exe"
 
 installerUrlTemplate: "https://blitz-main.blitz.gg/Blitz-{version}.exe"

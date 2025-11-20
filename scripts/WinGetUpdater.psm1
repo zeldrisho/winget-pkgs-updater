@@ -233,27 +233,45 @@ function Get-LatestVersion {
         throw "Cannot get latest version from empty list"
     }
 
-    # Sort versions using .NET Version class or custom comparison
-    $sortedVersions = $Versions | Sort-Object -Property @{
-        Expression = {
-            try {
-                # Try to parse as version
-                [version]$_
+    # Custom version comparison that handles any number of components
+    $latestVersion = $Versions[0]
+
+    for ($i = 1; $i -lt $Versions.Count; $i++) {
+        $current = $Versions[$i]
+
+        # Split versions into numeric components
+        $latestParts = @($latestVersion -split '\.' | ForEach-Object { try { [int]$_ } catch { 0 } })
+        $currentParts = @($current -split '\.' | ForEach-Object { try { [int]$_ } catch { 0 } })
+
+        # Compare component by component
+        $maxLength = [Math]::Max($latestParts.Count, $currentParts.Count)
+        $isNewer = $false
+
+        for ($j = 0; $j -lt $maxLength; $j++) {
+            $latestVal = if ($j -lt $latestParts.Count) { $latestParts[$j] } else { 0 }
+            $currentVal = if ($j -lt $currentParts.Count) { $currentParts[$j] } else { 0 }
+
+            if ($currentVal -gt $latestVal) {
+                $isNewer = $true
+                break
             }
-            catch {
-                # Fallback to string comparison
-                $_
+            elseif ($currentVal -lt $latestVal) {
+                break
             }
         }
-    } -Descending
 
-    return $sortedVersions[0]
+        if ($isNewer) {
+            $latestVersion = $current
+        }
+    }
+
+    return $latestVersion
 }
 
 function Compare-Version {
     <#
     .SYNOPSIS
-        Compare two version strings
+        Compare two version strings (supports any number of components)
     #>
     param(
         [Parameter(Mandatory)]
@@ -263,20 +281,26 @@ function Compare-Version {
         [string]$Version2
     )
 
-    try {
-        $v1 = [version]$Version1
-        $v2 = [version]$Version2
+    # Split versions into numeric components
+    $v1Parts = @($Version1 -split '\.' | ForEach-Object { try { [int]$_ } catch { 0 } })
+    $v2Parts = @($Version2 -split '\.' | ForEach-Object { try { [int]$_ } catch { 0 } })
 
-        if ($v1 -lt $v2) { return -1 }
-        elseif ($v1 -gt $v2) { return 1 }
-        else { return 0 }
+    # Compare component by component
+    $maxLength = [Math]::Max($v1Parts.Count, $v2Parts.Count)
+
+    for ($i = 0; $i -lt $maxLength; $i++) {
+        $v1Val = if ($i -lt $v1Parts.Count) { $v1Parts[$i] } else { 0 }
+        $v2Val = if ($i -lt $v2Parts.Count) { $v2Parts[$i] } else { 0 }
+
+        if ($v1Val -lt $v2Val) {
+            return -1
+        }
+        elseif ($v1Val -gt $v2Val) {
+            return 1
+        }
     }
-    catch {
-        # Fallback to string comparison
-        if ($Version1 -lt $Version2) { return -1 }
-        elseif ($Version1 -gt $Version2) { return 1 }
-        else { return 0 }
-    }
+
+    return 0
 }
 
 function Get-LatestVersionFromGitHub {
@@ -826,18 +850,18 @@ function Update-ManifestYaml {
 
     # Replace hash if provided
     if ($Hash) {
-        $content = $content -replace "InstallerSha256:\s+[A-F0-9]{64}", "InstallerSha256: $Hash"
+        $content = $content -replace "InstallerSha256:\s+[A-Fa-f0-9]{64}", "InstallerSha256: $Hash"
     }
 
     # Replace ProductCode if provided and exists in manifest
     if ($ProductCode -and $content -match 'ProductCode:') {
-        $content = $content -replace "ProductCode:\s+\{[A-F0-9\-]+\}", "ProductCode: $ProductCode"
+        $content = $content -replace "ProductCode:\s+\{[A-Fa-f0-9\-]+\}", "ProductCode: $ProductCode"
         Write-Host "  ✓ Updated ProductCode: $ProductCode" -ForegroundColor Green
     }
 
     # Replace SignatureSha256 if provided and exists in manifest
     if ($SignatureSha256 -and $content -match 'SignatureSha256:') {
-        $content = $content -replace "SignatureSha256:\s+[A-F0-9]{64}", "SignatureSha256: $SignatureSha256"
+        $content = $content -replace "SignatureSha256:\s+[A-Fa-f0-9]{64}", "SignatureSha256: $SignatureSha256"
         Write-Host "  ✓ Updated SignatureSha256: $SignatureSha256" -ForegroundColor Green
     }
 
@@ -1245,8 +1269,9 @@ function New-PullRequest {
 - **Package**: $PackageId
 - **Version**: $Version
 - **Submitted by**: Automated WinGet Package Updater
+- **Automation**: https://github.com/zeldrisho/winget-pkgs-updater
 
-This PR was created automatically by the WinGet Package Updater.
+This PR was created automatically by the [WinGet Package Updater](https://github.com/zeldrisho/winget-pkgs-updater).
 "@
 
         Write-Host "Creating pull request..." -ForegroundColor Cyan
