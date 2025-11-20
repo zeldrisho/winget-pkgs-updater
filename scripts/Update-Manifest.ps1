@@ -196,8 +196,24 @@ try {
     $installerHash = $null
     $productCode = $null
     $signatureSha256 = $null
+    $finalInstallerUrl = $primaryUrl
 
-    if (Get-WebFile -Url $primaryUrl -OutFile $tempInstaller) {
+    $downloadResult = Get-WebFile -Url $primaryUrl -OutFile $tempInstaller
+
+    if ($downloadResult.Success) {
+        # Store the final URL after redirects
+        $finalInstallerUrl = $downloadResult.FinalUrl
+
+        # Warn if URL was redirected (vanity URL detected)
+        if ($downloadResult.WasRedirected) {
+            Write-Host "`n⚠️  Warning: Vanity URL detected!" -ForegroundColor Yellow
+            Write-Host "   The installer URL redirects to a different location." -ForegroundColor Yellow
+            Write-Host "   This may cause SHA256 hash mismatch issues in WinGet." -ForegroundColor Yellow
+            Write-Host "   Original URL: $primaryUrl" -ForegroundColor Gray
+            Write-Host "   Final URL:    $finalInstallerUrl" -ForegroundColor Gray
+            Write-Host "   Consider updating the checkver config to use the final URL directly.`n" -ForegroundColor Yellow
+        }
+
         # Calculate installer hash
         $installerHash = Get-FileSha256 -FilePath $tempInstaller
         Write-Host "✅ Calculated SHA256: $installerHash" -ForegroundColor Green
