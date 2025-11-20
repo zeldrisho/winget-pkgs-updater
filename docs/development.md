@@ -46,6 +46,27 @@ Get-Content version_info.json | ConvertFrom-Json | ConvertTo-Json -Depth 10
 - `0` - New version detected
 - `1` - No update needed or check failed
 
+## Testing Manifest Validation
+
+The workflow includes automatic manifest validation using `winget validate`. To test locally:
+
+```powershell
+# Validate manifest files
+winget validate --manifest path/to/manifest/directory
+
+# Example: Validate a specific version
+winget validate --manifest manifests/m/Microsoft/PowerShell/7.5.0
+```
+
+**Note:** WinGet must be installed for validation. Get it from [Microsoft Store](https://aka.ms/getwinget) or install via:
+
+```powershell
+# Windows (if not already installed)
+winget install Microsoft.WindowsPackageManagerClient
+```
+
+If winget is not available, the validation step will be skipped with a warning.
+
 ## Testing PowerShell Scripts
 
 Test PowerShell script blocks from checkver configs:

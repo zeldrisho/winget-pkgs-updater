@@ -183,13 +183,13 @@ The automated workflow:
 
 ## Next Steps
 
-- Read [docs/checkver-guide.md](checkver-guide.md) for advanced configuration
-- Read [docs/contributing.md](contributing.md) for detailed guidelines
-- Read [docs/development.md](development.md) for local development
+- Read [checkver-guide.md](checkver-guide.md) for advanced configuration
+- Read [contributing.md](contributing.md) for detailed guidelines
+- Read [development.md](development.md) for local development
 - Browse existing checkver files in `manifests/` for examples
 
 ## Getting Help
 
-- 📖 Check [docs/](../docs/) for detailed documentation
+- 📖 Check [all documentation](README.md) for detailed guides
 - 🐛 [Open an issue](https://github.com/zeldrisho/winget-pkgs-updater/issues) for bugs
 - 💬 [Start a discussion](https://github.com/zeldrisho/winget-pkgs-updater/discussions) for questions

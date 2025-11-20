@@ -93,20 +93,37 @@ Use `${1}`, `${2}`, etc. to reference capture groups.
 
 #### Custom Metadata Extraction
 
-Use PowerShell named groups for custom placeholders:
+Extract custom metadata using PowerShell regex named groups:
 
 ```yaml
 checkver:
   type: script
   script: |
-    $response = Invoke-WebRequest -Uri "https://example.com/release" -UseBasicParsing
-    Write-Output $response.Content
-  regex: "(?P<version>[\\d\\.]+)\\|(?P<build>[^\\|]+)"
+    $response = Invoke-RestMethod -Uri "https://api.example.com/release"
+    Write-Output "$($response.version)|$($response.buildNumber)"
+  regex: "(?<version>[\\d\\.]+)\\|(?<buildNumber>[^\\|]+)"
 
-installerUrlTemplate: "https://example.com/app-{build}.zip"
+installerUrlTemplate: "https://example.com/app-{buildNumber}.zip"
 ```
 
-Note: PowerShell uses `(?P<name>...)` for named groups, not `(?<name>...)`.
+**How it works**:
+- Script outputs: `1.2.3|build-abc123`
+- Regex extracts: `version=1.2.3`, `buildNumber=build-abc123`
+- URL becomes: `https://example.com/app-build-abc123.zip`
+
+**Syntax**: PowerShell uses `(?<name>pattern)` for named groups (NOT `(?P<name>...)` which is Python-style).
+
+**Real-world example** (Roblox):
+```yaml
+checkver:
+  type: script
+  script: |
+    $json = Invoke-RestMethod "https://clientsettingscdn.roblox.com/v1/client-version/WindowsPlayer"
+    Write-Output "$($json.version)|$($json.clientVersionUpload)"
+  regex: "(?<version>[\\d\\.]+)\\|(?<clientVersionUpload>version-[a-f0-9]+)"
+
+installerUrlTemplate: "https://setup.rbxcdn.com/{clientVersionUpload}-RobloxPlayerInstaller.exe"
+```
 
 ## Multi-Architecture Support
 

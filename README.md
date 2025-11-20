@@ -15,34 +15,13 @@ Automated tool to check for new package versions and create pull requests to [mi
 
 ## Quick Setup
 
-**New to this project?** → See [docs/quick-start.md](docs/quick-start.md) for a complete setup guide!
+**New to this project?** → See **[docs/quick-start.md](docs/quick-start.md)** for complete 5-minute setup guide!
 
-### 1. Fork Repositories
-
-- Fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
-- Fork this repository
-
-### 2. Create GitHub Token
-
-1. Go to [GitHub Settings → Developer settings → Tokens (classic)](https://github.com/settings/tokens)
-2. Generate new token with scopes: `repo`, `workflow`
-3. Copy the token
-
-### 3. Add Secrets
-
-In your forked repository:
-
-- Go to Settings → Secrets and variables → Actions
-- Create secret: `WINGET_PKGS_TOKEN` = your token (required)
-- Create secret: `WINGET_FORK_REPO` = your fork repository in format `username/winget-pkgs` (optional, defaults to `{GITHUB_REPOSITORY_OWNER}/winget-pkgs`)
-
-### 4. Run Workflow
-
-- Go to Actions → Update WinGet Packages → Run workflow
+**TL;DR**: Fork repos → Add `WINGET_PKGS_TOKEN` secret → Create `.checkver.yaml` files → Run workflow
 
 ## Adding Packages
 
-See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contributing.md](docs/contributing.md) for detailed instructions.
+See **[docs/contributing.md](docs/contributing.md)** for detailed instructions on adding new packages.
 
 ## Documentation
 
@@ -63,29 +42,31 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
 
 ### 3-Stage Pipeline
 
-#### Stage 1: Version Detection
+#### Stage 1: Version Detection & Validation
 1. **Auto-derive identifiers** - Extract packageIdentifier from filename
 2. **Query winget-pkgs** - Find latest published version via GitHub API
 3. **Run version check** - Execute PowerShell script or GitHub API query
-4. **Compare versions** - Exit with new version info if update available
-
-#### Stage 2: PR Gate Check
-5. **Search existing PRs** - Query microsoft/winget-pkgs for matching PRs
+4. **Compare versions** - Determine if update is available
+5. **Check existing PRs** - Query microsoft/winget-pkgs for matching PRs
    - **OPEN/MERGED** → Skip (already submitted/accepted)
-   - **CLOSED** → Check fork branch status
-     - Branch exists → Skip (avoid duplicate)
-     - Branch deleted → Continue (allow retry)
+   - **CLOSED** → Continue (allow retry)
+   - **Not found** → Continue (create new PR)
+6. **Output version_info.json** - Only if all checks pass
 
-#### Stage 3: Manifest Update
-6. **Fetch manifests** - Download latest version folder from upstream via API
-7. **Download installers** - Download files for hash calculation
-8. **Calculate hashes** - InstallerSha256 + SignatureSha256 (MSIX) + ProductCode (MSI)
-9. **Update manifests** - Smart field updates:
+#### Stage 2: Manifest Update
+7. **Fetch manifests** - Download latest version folder from upstream via API
+8. **Download installers** - Download files for hash calculation
+9. **Calculate hashes** - InstallerSha256 + SignatureSha256 (MSIX) + ProductCode (MSI)
+10. **Check duplicates** - Search for duplicate hashes in other packages (informational warning)
+11. **Update manifests** - Smart field updates:
     - **Always updated**: PackageVersion, InstallerSha256, InstallerUrl
     - **Conditionally updated**: ProductCode, ReleaseDate, ReleaseNotes (if exist in old manifest)
     - **Preserved**: All other fields (Publisher, License, Tags, etc.)
-10. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
-11. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
+12. **Validate manifests** - Run `winget validate --manifest` to verify correctness
+
+#### Stage 3: Publish
+13. **Publish via API** - Create commit and branch directly using GitHub API (no cloning)
+14. **Create PR** - Open PR from fork branch to microsoft/winget-pkgs
 
 ## PR Management
 
@@ -108,66 +89,23 @@ See [docs/quick-start.md](docs/quick-start.md) for a quick guide or [docs/contri
 ✅ Version detection (GitHub API and PowerShell scripts)
 ✅ Automatic package identifier and manifest path derivation
 ✅ Installer download and SHA256 calculation
+✅ Duplicate hash detection across microsoft/winget-pkgs
 ✅ Manifest fetching from microsoft/winget-pkgs
 ✅ YAML manifest updates with version replacement
+✅ Manifest validation using `winget validate` before PR creation
 ✅ GitHub API-based commit creation (no repository cloning)
-✅ Pull request creation
+✅ Pull request creation with automatic issue detection and closing
 ✅ ProductCode extraction from MSI files
 ✅ SignatureSha256 calculation for MSIX packages
 
 ## Local Development
 
-### Testing Version Detection
+See **[docs/development.md](docs/development.md)** for complete local development guide including:
 
-```powershell
-# Test a package
-pwsh -File scripts/Check-Version.ps1 manifests/Microsoft.PowerShell.checkver.yaml
-
-# Save output to JSON
-pwsh -File scripts/Check-Version.ps1 manifests/Package.checkver.yaml version_info.json
-
-# View output
-Get-Content version_info.json | ConvertFrom-Json | ConvertTo-Json
-```
-
-Exit codes:
-- `0` = New version detected
-- `1` = No update needed or check failed
-
-### Prerequisites
-
-1. Install PowerShell 7.4+:
-   ```bash
-   # Windows (winget)
-   winget install Microsoft.PowerShell
-
-   # macOS (Homebrew)
-   brew install powershell/tap/powershell
-
-   # Linux (see https://aka.ms/install-powershell)
-   ```
-
-2. Install GitHub CLI:
-   ```bash
-   # Windows
-   winget install GitHub.cli
-
-   # macOS
-   brew install gh
-
-   # Linux
-   # See https://github.com/cli/cli#installation
-   ```
-
-3. Install PowerShell modules:
-   ```powershell
-   Install-Module -Name powershell-yaml -Scope CurrentUser
-   ```
-
-4. Authenticate GitHub CLI:
-   ```bash
-   gh auth login
-   ```
+- Testing version detection
+- Manifest validation
+- Prerequisites and setup
+- Debugging tips
 
 ## Project Structure
 
