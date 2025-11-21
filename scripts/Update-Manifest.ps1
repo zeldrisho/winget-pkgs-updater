@@ -273,9 +273,9 @@ try {
         exit 1
     }
 
-    # Publish manifest via GitHub API
+    # Publish manifest via Git CLI (supports GPG signing)
     Write-Host "`nPublishing manifest..." -ForegroundColor Cyan
-    if (-not (Publish-ManifestViaAPI -ForkRepo $forkRepo -ManifestPath $manifestPath -Version $Version -ManifestDir $newVersionDir -PackageId $PackageId -BranchName $branchName)) {
+    if (-not (Publish-ManifestViaGit -ForkRepo $forkRepo -ManifestPath $manifestPath -Version $Version -ManifestDir $newVersionDir -PackageId $PackageId -BranchName $branchName)) {
         throw "Failed to publish manifest"
     }
 

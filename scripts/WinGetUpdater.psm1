@@ -1643,6 +1643,117 @@ function Publish-ManifestViaAPI {
     }
 }
 
+function Publish-ManifestViaGit {
+    <#
+    .SYNOPSIS
+        Publish manifest files using Git CLI (supports GPG signing)
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$ForkRepo,
+
+        [Parameter(Mandatory)]
+        [string]$ManifestPath,
+
+        [Parameter(Mandatory)]
+        [string]$Version,
+
+        [Parameter(Mandatory)]
+        [string]$ManifestDir,
+
+        [Parameter(Mandatory)]
+        [string]$PackageId,
+
+        [Parameter(Mandatory)]
+        [string]$BranchName
+    )
+
+    try {
+        Write-Host "`nPreparing to publish via Git CLI..." -ForegroundColor Cyan
+        
+        # Setup Git authentication
+        Write-Host "Setting up Git authentication..." -ForegroundColor Cyan
+        gh auth setup-git 2>&1 | Out-Null
+
+        # Create temp directory for clone
+        $tempDir = Join-Path $env:TEMP "winget-pkgs-git-$(Get-Random)"
+        Write-Host "Cloning fork to $tempDir..." -ForegroundColor Cyan
+        
+        # Use sparse checkout for performance
+        $repoUrl = "https://github.com/$ForkRepo.git"
+        git clone --filter=blob:none --sparse --depth 1 $repoUrl $tempDir 2>&1 | Out-Null
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Git clone failed"
+        }
+
+        Push-Location $tempDir
+
+        try {
+            # Configure sparse checkout to include the manifest path
+            Write-Host "Configuring sparse checkout for $ManifestPath..." -ForegroundColor Cyan
+            git sparse-checkout add $ManifestPath 2>&1 | Out-Null
+
+            # Create and checkout new branch
+            Write-Host "Creating branch $BranchName..." -ForegroundColor Cyan
+            git checkout -b $BranchName 2>&1 | Out-Null
+
+            # Copy manifest files
+            Write-Host "Copying manifest files..." -ForegroundColor Cyan
+            $destPath = Join-Path $tempDir $ManifestPath
+            
+            if (-not (Test-Path $destPath)) {
+                New-Item -ItemType Directory -Path $destPath -Force | Out-Null
+            }
+
+            Copy-Item "$ManifestDir\*" $destPath -Force
+
+            # Stage changes
+            Write-Host "Staging changes..." -ForegroundColor Cyan
+            git add . 2>&1 | Out-Null
+
+            # Commit
+            $commitMessage = "New version: $PackageId version $Version"
+            Write-Host "Committing changes..." -ForegroundColor Cyan
+            
+            # Check for GPG signing configuration
+            $gpgSign = $false
+            try {
+                $signingKey = git config --get user.signingkey
+                if ($signingKey) {
+                    $gpgSign = $true
+                    Write-Host "  GPG signing enabled (key: $signingKey)" -ForegroundColor Green
+                }
+            } catch {}
+
+            git commit -m $commitMessage 2>&1 | Out-Null
+            
+            if ($LASTEXITCODE -ne 0) {
+                throw "Git commit failed"
+            }
+
+            # Push
+            Write-Host "Pushing branch..." -ForegroundColor Cyan
+            git push origin $BranchName 2>&1 | Out-Null
+            
+            if ($LASTEXITCODE -ne 0) {
+                throw "Git push failed"
+            }
+
+            Write-Host "✅ Successfully published manifest via Git!" -ForegroundColor Green
+            return $true
+        }
+        finally {
+            Pop-Location
+            Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    catch {
+        Write-Error "Failed to publish manifest via Git: $_"
+        return $false
+    }
+}
+
 function New-PullRequest {
     <#
     .SYNOPSIS
@@ -1678,8 +1789,8 @@ function New-PullRequest {
         $relatedIssues = @()
 
         try {
-            # Search for issues mentioning the package name and version in body
-            $searchQuery = "$PackageId $Version in:body is:issue is:open"
+            # Search for issues mentioning the package name and version in title or body
+            $searchQuery = "$PackageId $Version in:title,body is:issue is:open"
             $issues = gh issue list --repo microsoft/winget-pkgs --search $searchQuery --json number,title,body --limit 20 2>$null | ConvertFrom-Json
 
             if ($issues -and $issues.Count -gt 0) {
@@ -1851,5 +1962,6 @@ Export-ModuleMember -Function @(
     'New-GitHubCommit',
     'New-GitHubBranch',
     'Publish-ManifestViaAPI',
+    'Publish-ManifestViaGit',
     'New-PullRequest'
 )
