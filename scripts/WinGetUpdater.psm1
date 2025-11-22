@@ -1740,7 +1740,9 @@ function Publish-ManifestViaGit {
 
             # Copy manifest files
             Write-Host "Copying manifest files..." -ForegroundColor Cyan
-            $destPath = Join-Path $tempDir $ManifestPath
+            # Append version to manifest path to create correct structure: manifests/p/Publisher/Package/Version
+            $versionPath = "$ManifestPath/$Version"
+            $destPath = Join-Path $tempDir $versionPath
             
             if (-not (Test-Path $destPath)) {
                 New-Item -ItemType Directory -Path $destPath -Force | Out-Null

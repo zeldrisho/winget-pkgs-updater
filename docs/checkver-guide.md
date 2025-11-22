@@ -26,7 +26,7 @@ Derived from packageIdentifier with intelligent pattern detection:
 - **Deep nested**: `Microsoft.VisualStudio.2022.Community` → `manifests/m/Microsoft/VisualStudio/2022/Community`
 - **Version subdirectory**: `RoyalApps.RoyalTS.7` → `manifests/r/RoyalApps/RoyalTS/7`
 
-The system queries GitHub API to detect which pattern exists.
+The system queries GitHub API to detect which pattern exists. When creating a PR, the version directory is appended to this path (e.g., `manifests/m/Microsoft/PowerShell/7.4.1`).
 
 ## Configuration Types
 

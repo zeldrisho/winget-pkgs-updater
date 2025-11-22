@@ -159,6 +159,8 @@ The system automatically derives:
   - Deep nested: `A.B.C.D` → `manifests/a/A/B/C/D`
   - Version subdirectory: `A.B.7` → `manifests/a/A/B/7`
 
+When creating a PR, the version directory is appended to the manifest path (e.g., `manifests/a/A/B/1.2.3`).
+
 ### Manifest Update Strategy
 
 The updater:

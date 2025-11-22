@@ -80,13 +80,15 @@ Prevents duplicate pull requests by checking:
 # Filename: Microsoft.PowerShell.checkver.yaml
 # → packageIdentifier: Microsoft.PowerShell
 # → manifestPath: manifests/m/Microsoft/PowerShell
+# → PR Path: manifests/m/Microsoft/PowerShell/<version>
 
 # Filename: Microsoft.VisualStudio.2022.Community.checkver.yaml
 # → packageIdentifier: Microsoft.VisualStudio.2022.Community
 # → manifestPath: manifests/m/Microsoft/VisualStudio/2022/Community (deep nested)
+# → PR Path: manifests/m/Microsoft/VisualStudio/2022/Community/<version>
 ```
 
-The system queries GitHub API to detect the correct manifest path pattern automatically.
+The system queries GitHub API to detect the correct manifest path pattern automatically. When creating a PR, the version directory is appended to the manifest path (e.g., `manifests/m/Microsoft/PowerShell/7.4.1`).
 
 #### Version Sorting Pattern
 
