@@ -1694,16 +1694,40 @@ function Publish-ManifestViaGit {
             try {
                 $authUser = gh api user | ConvertFrom-Json
                 $userName = if ($authUser.name) { $authUser.name } else { $authUser.login }
-                $userEmail = "$($authUser.id)+$($authUser.login)@users.noreply.github.com"
                 
-                Write-Host "Configuring git identity as $userName..." -ForegroundColor Cyan
+                # Try to get public email first
+                $userEmail = $authUser.email
+                
+                # If no public email, try to get from emails endpoint
+                if ([string]::IsNullOrEmpty($userEmail)) {
+                    try {
+                        $emails = gh api user/emails | ConvertFrom-Json
+                        $primaryEmail = $emails | Where-Object { $_.primary } | Select-Object -First 1
+                        if ($primaryEmail) {
+                            $userEmail = $primaryEmail.email
+                        }
+                    } catch {}
+                }
+
+                # If still no email, construct noreply address (dynamic fallback)
+                if ([string]::IsNullOrEmpty($userEmail)) {
+                    $userEmail = "$($authUser.id)+$($authUser.login)@users.noreply.github.com"
+                }
+                
+                Write-Host "Configuring git identity as $userName <$userEmail>..." -ForegroundColor Cyan
                 git config user.name $userName
                 git config user.email $userEmail
             }
             catch {
-                Write-Warning "Failed to get authenticated user info, falling back to default identity"
-                git config user.name "WinGet Updater"
-                git config user.email "winget-updater@users.noreply.github.com"
+                Write-Warning "Failed to get authenticated user info: $_"
+                # Fallback to environment variables if available (CI environment)
+                if ($env:GITHUB_ACTOR) {
+                    Write-Host "Falling back to GITHUB_ACTOR..." -ForegroundColor Yellow
+                    git config user.name $env:GITHUB_ACTOR
+                    git config user.email "$env:GITHUB_ACTOR@users.noreply.github.com"
+                } else {
+                    throw "Failed to configure git identity: Unable to retrieve user info and GITHUB_ACTOR not set."
+                }
             }
 
             # Configure sparse checkout to include the manifest path
