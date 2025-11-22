@@ -1690,9 +1690,21 @@ function Publish-ManifestViaGit {
         Push-Location $tempDir
 
         try {
-            # Configure git identity
-            git config user.name "WinGet Updater"
-            git config user.email "winget-updater@users.noreply.github.com"
+            # Configure git identity from authenticated user
+            try {
+                $authUser = gh api user | ConvertFrom-Json
+                $userName = if ($authUser.name) { $authUser.name } else { $authUser.login }
+                $userEmail = "$($authUser.id)+$($authUser.login)@users.noreply.github.com"
+                
+                Write-Host "Configuring git identity as $userName..." -ForegroundColor Cyan
+                git config user.name $userName
+                git config user.email $userEmail
+            }
+            catch {
+                Write-Warning "Failed to get authenticated user info, falling back to default identity"
+                git config user.name "WinGet Updater"
+                git config user.email "winget-updater@users.noreply.github.com"
+            }
 
             # Configure sparse checkout to include the manifest path
             Write-Host "Configuring sparse checkout for $ManifestPath..." -ForegroundColor Cyan
