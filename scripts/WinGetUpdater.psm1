@@ -1681,15 +1681,19 @@ function Publish-ManifestViaGit {
         
         # Use sparse checkout for performance
         $repoUrl = "https://github.com/$ForkRepo.git"
-        git clone --filter=blob:none --sparse --depth 1 $repoUrl $tempDir 2>&1 | Out-Null
+        $cloneOutput = git clone --filter=blob:none --sparse --depth 1 $repoUrl $tempDir 2>&1
         
         if ($LASTEXITCODE -ne 0) {
-            throw "Git clone failed"
+            throw "Git clone failed: $cloneOutput"
         }
 
         Push-Location $tempDir
 
         try {
+            # Configure git identity
+            git config user.name "WinGet Updater"
+            git config user.email "winget-updater@users.noreply.github.com"
+
             # Configure sparse checkout to include the manifest path
             Write-Host "Configuring sparse checkout for $ManifestPath..." -ForegroundColor Cyan
             git sparse-checkout add $ManifestPath 2>&1 | Out-Null
@@ -1726,18 +1730,22 @@ function Publish-ManifestViaGit {
                 }
             } catch {}
 
-            git commit -m $commitMessage 2>&1 | Out-Null
+            $commitOutput = git commit -m $commitMessage 2>&1
             
             if ($LASTEXITCODE -ne 0) {
-                throw "Git commit failed"
+                if ($commitOutput -match "nothing to commit|clean") {
+                    Write-Host "⚠️  Nothing to commit (manifest already up to date)" -ForegroundColor Yellow
+                    return $true
+                }
+                throw "Git commit failed: $commitOutput"
             }
 
             # Push
             Write-Host "Pushing branch..." -ForegroundColor Cyan
-            git push origin $BranchName 2>&1 | Out-Null
+            $pushOutput = git push origin $BranchName 2>&1
             
             if ($LASTEXITCODE -ne 0) {
-                throw "Git push failed"
+                throw "Git push failed: $pushOutput"
             }
 
             Write-Host "✅ Successfully published manifest via Git!" -ForegroundColor Green
