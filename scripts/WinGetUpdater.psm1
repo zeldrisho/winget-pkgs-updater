@@ -379,13 +379,23 @@ function Get-LatestVersionFromScript {
         $output = Invoke-Expression $script
 
         if (-not $output) {
+            Write-Warning "Script returned no output"
             return $null
         }
 
         # Apply regex if provided
         $regex = $checkver.regex
         if ($regex) {
+            Write-Verbose "Applying regex: $regex"
+            Write-Verbose "Output type: $($output.GetType().FullName)"
+            if ($output -is [array]) {
+                Write-Verbose "Output is array with $($output.Count) elements"
+                $output = $output -join "`n"
+                Write-Verbose "Joined output into single string"
+            }
+            
             if ($output -match $regex) {
+                Write-Verbose "Regex matched"
                 # Determine version based on available patterns
                 $version = $null
 
@@ -450,6 +460,24 @@ function Get-InstallerUrl {
     # Remove trailing .0 for versionShort
     $versionShort = $Version -replace '\.0$', ''
     $url = $url -replace '\{versionShort\}', $versionShort
+
+    # Handle versionNoDots
+    $versionNoDots = $Version -replace '\.', ''
+    $url = $url -replace '\{versionNoDots\}', $versionNoDots
+
+    # Handle version components (Major.Minor.Patch.Build)
+    try {
+        # Split version into components
+        $parts = $Version -split '\.'
+        
+        if ($parts.Count -ge 1) { $url = $url -replace '\{versionMajor\}', $parts[0] }
+        if ($parts.Count -ge 2) { $url = $url -replace '\{versionMinor\}', $parts[1] }
+        if ($parts.Count -ge 3) { $url = $url -replace '\{versionPatch\}', $parts[2] }
+        if ($parts.Count -ge 4) { $url = $url -replace '\{versionBuild\}', $parts[3] }
+    }
+    catch {
+        Write-Warning "Could not parse version components for $Version"
+    }
 
     # Replace metadata placeholders
     foreach ($key in $Metadata.Keys) {

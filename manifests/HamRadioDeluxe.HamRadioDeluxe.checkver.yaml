@@ -1,8 +1,8 @@
 checkver:
   type: script
+  regex: Ham Radio Deluxe.*?v([\d.]+)
   script: |
     $response = Invoke-WebRequest -Uri "https://hamradiodeluxe.com/downloads" -UseBasicParsing
     Write-Output $response.Content
-  regex: "Ham Radio Deluxe.*?v([\\d.]+)"
 
 installerUrlTemplate: "https://downloads.hamradiodeluxe.com/setupHRD_{versionNoDots}.exe"

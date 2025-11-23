@@ -10,7 +10,7 @@ checkver:
     }
     $latest = $versions | Select-Object -Unique | Sort-Object {[version]$_} -Descending | Select-Object -First 1
     Write-Output $latest
-  regex: "(\\d+)\\.(\\d+)(?:\\.(\\d+))?"
+  regex: "(?<versionRaw>(\\d+)\\.(\\d+)(?:\\.(\\d+))?)"
   replace: "${1}.${2}"
 
 installerUrlTemplate:

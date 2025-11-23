@@ -6,5 +6,5 @@ checkver:
   regex: "royalts_([\\d.]+)_x64\\.zip"
 
 installerUrlTemplate:
-  x64: "https://download.royalapps.com/royalts/royaltsinstaller_{versionOriginal}_x64.msi"
-  arm64: "https://download.royalapps.com/royalts/royaltsinstaller_{versionOriginal}_arm64.msi"
+  x64: "https://download.royalapps.com/royalts/royaltsinstaller_{version}_x64.msi"
+  arm64: "https://download.royalapps.com/royalts/royaltsinstaller_{version}_arm64.msi"
