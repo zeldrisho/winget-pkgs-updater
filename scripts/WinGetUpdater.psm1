@@ -463,7 +463,9 @@ function Get-InstallerUrl {
 
     # Handle versionNoDots
     $versionNoDots = $Version -replace '\.', ''
+    Write-Verbose "  Replacing {versionNoDots} with $versionNoDots"
     $url = $url.Replace("{versionNoDots}", $versionNoDots)
+    Write-Verbose "  URL after versionNoDots: $url"
 
     # Handle version components (Major.Minor.Patch.Build)
     try {

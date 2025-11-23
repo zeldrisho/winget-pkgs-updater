@@ -131,9 +131,18 @@ try {
         }
     } else {
         # Single architecture
+        Write-Verbose "Template: $installerUrlTemplate"
+        Write-Verbose "Version: $Version"
+        Write-Verbose "Metadata keys: $($metadata.Keys -join ', ')"
         $primaryUrl = Get-InstallerUrl -Template $installerUrlTemplate -Version $Version -Metadata $metadata
         $installerUrls = $null
         Write-Host "Installer URL: $primaryUrl" -ForegroundColor Gray
+        
+        # Verify placeholder was replaced
+        if ($primaryUrl -match '\{[^\}]+\}') {
+            Write-Warning "URL still contains placeholders: $primaryUrl"
+            Write-Warning "This indicates Get-InstallerUrl did not replace all placeholders"
+        }
 
     }
 
