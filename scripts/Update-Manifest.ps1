@@ -38,6 +38,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$VerbosePreference = 'Continue'
 
 # Import module
 Import-Module "$PSScriptRoot/WinGetUpdater.psm1" -Force
