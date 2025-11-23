@@ -121,14 +121,7 @@ try {
         Write-Host "Multi-architecture package detected" -ForegroundColor Cyan
         $installerUrls = @{}
         foreach ($arch in $installerUrlTemplate.Keys) {
-            $url = $installerUrlTemplate[$arch] -replace '\{version\}', $Version
-            $url = $url -replace '\{versionShort\}', ($Version -replace '\.0$', '')
-
-            # Replace metadata placeholders
-            foreach ($key in $metadata.Keys) {
-                $url = $url -replace "\{$key\}", $metadata[$key]
-            }
-
+            $url = Get-InstallerUrl -Template $installerUrlTemplate[$arch] -Version $Version -Metadata $metadata
             $installerUrls[$arch] = $url
             Write-Host "  $arch : $url" -ForegroundColor Gray
         }
@@ -138,16 +131,10 @@ try {
         }
     } else {
         # Single architecture
-        $primaryUrl = $installerUrlTemplate -replace '\{version\}', $Version
-        $primaryUrl = $primaryUrl -replace '\{versionShort\}', ($Version -replace '\.0$', '')
-
-        # Replace metadata placeholders
-        foreach ($key in $metadata.Keys) {
-            $primaryUrl = $primaryUrl -replace "\{$key\}", $metadata[$key]
-        }
-
+        $primaryUrl = Get-InstallerUrl -Template $installerUrlTemplate -Version $Version -Metadata $metadata
         $installerUrls = $null
         Write-Host "Installer URL: $primaryUrl" -ForegroundColor Gray
+
     }
 
     # Get latest version from winget-pkgs to use as template
