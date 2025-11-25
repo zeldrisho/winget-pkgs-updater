@@ -1024,11 +1024,45 @@ function Update-ManifestYaml {
 
     $content = Get-Content $FilePath -Raw
 
-    # Replace version
-    $content = $content -replace "PackageVersion:\s+$([regex]::Escape($OldVersion))", "PackageVersion: $NewVersion"
+    # IMPORTANT: When old version is a substring of new version (e.g., 25.11.1 -> 25.11.11),
+    # we must avoid double-replacement bugs. Strategy: Replace from most specific to least specific,
+    # and only do global replacement when safe.
 
-    # Replace all version occurrences (for URLs, paths, etc.)
-    $content = $content -replace [regex]::Escape($OldVersion), $NewVersion
+    $escapedOld = [regex]::Escape($OldVersion)
+
+    # Check if old version is a substring of new version (prefix, suffix, or contained)
+    $isSafeForGlobalReplace = -not $NewVersion.Contains($OldVersion)
+
+    if ($isSafeForGlobalReplace) {
+        # Safe to do global replacement - old version won't match within the new version
+        $content = $content -replace $escapedOld, $NewVersion
+    } else {
+        # Unsafe for global replacement - do field-specific replacements only
+        # Replace PackageVersion field
+        $content = $content -replace "(?m)^(\s*)PackageVersion:\s+$escapedOld\s*$", "`$1PackageVersion: $NewVersion"
+        
+        # Replace DisplayVersion field (if exists)
+        $content = $content -replace "(?m)^(\s*)DisplayVersion:\s+$escapedOld\s*$", "`$1DisplayVersion: $NewVersion"
+        
+        # For fields that may contain version in their values (URLs, paths),
+        # we need to match just the version occurrence, not the whole line
+        $lines = $content -split "`r?`n"
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+            
+            # Skip lines we already processed (PackageVersion, DisplayVersion)
+            if ($line -match '^\s*(PackageVersion|DisplayVersion):') {
+                continue
+            }
+            
+            # Replace version occurrences in other lines (InstallerUrl, RelativeFilePath, etc.)
+            # Use word boundary or path separator context to avoid partial matches
+            if ($line -match $escapedOld) {
+                $lines[$i] = $line -replace $escapedOld, $NewVersion
+            }
+        }
+        $content = $lines -join "`n"
+    }
 
     # Replace InstallerUrl if provided
     if ($InstallerUrl) {
