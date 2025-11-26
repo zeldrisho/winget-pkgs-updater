@@ -10,7 +10,6 @@ All comprehensive documentation has been moved to the `docs/` directory:
 - **[docs/architecture.md](../docs/architecture.md)** - System architecture, design patterns, and module structure
 - **[docs/checkver-guide.md](../docs/checkver-guide.md)** - Complete checkver configuration reference with examples
 - **[docs/development.md](../docs/development.md)** - Developer guide, testing, and debugging
-- **[docs/contributing.md](../docs/contributing.md)** - Guide for adding new packages
 
 Additional documentation:
 - **[manifests/README.md](../manifests/README.md)** - Quick checkver reference (simplified)
@@ -60,7 +59,7 @@ docs/
 → Refer to [docs/architecture.md](../docs/architecture.md)
 
 **"How do I add a package?"** or **"How do I write a checkver config?"**
-→ Refer to [docs/quick-start.md](../docs/quick-start.md) for basics, [docs/contributing.md](../docs/contributing.md) and [docs/checkver-guide.md](../docs/checkver-guide.md) for details
+→ Refer to [docs/quick-start.md](../docs/quick-start.md) for basics and [docs/checkver-guide.md](../docs/checkver-guide.md) for details
 
 **"How do I test locally?"** or **"How do I debug?"**
 → Refer to [docs/development.md](../docs/development.md)

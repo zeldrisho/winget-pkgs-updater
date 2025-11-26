@@ -184,7 +184,6 @@ The automated workflow:
 ## Next Steps
 
 - Read [checkver-guide.md](checkver-guide.md) for advanced configuration
-- Read [contributing.md](contributing.md) for detailed guidelines
 - Read [development.md](development.md) for local development
 - Browse existing checkver files in `manifests/` for examples
 

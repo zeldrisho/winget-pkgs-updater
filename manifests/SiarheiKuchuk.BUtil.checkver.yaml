@@ -1,7 +1,0 @@
-checkver:
-  type: github
-  repo: drweb86/butil
-
-installerUrlTemplate:
-  arm64: "https://github.com/drweb86/butil/releases/download/{version}/BUtil_v{version}_win-arm64.exe"
-  x64: "https://github.com/drweb86/butil/releases/download/{version}/BUtil_v{version}_win-x64.exe"
