@@ -1,0 +1,14 @@
+checkver:
+  type: script
+  script: |
+    $response = Invoke-WebRequest -Uri "https://sublimetext.com/download" -UseBasicParsing
+    if ($response.Content -match 'Build (\d+)') {
+      $buildNumber = $matches[1]
+      # Only process if major version is 4
+      if ($buildNumber -match '^4') {
+        Write-Output "${buildNumber}|4.0.0.${buildNumber}00"
+      }
+    }
+  regex: "(?<buildNumber>[\\d]+)\\|(?<version>[\\d\\.]+)"
+
+installerUrlTemplate: "https://download.sublimetext.com/sublime_text_build_{buildNumber}_x64_setup.exe"
