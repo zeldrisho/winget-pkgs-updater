@@ -1,7 +1,0 @@
-checkver:
-  type: github
-  repo: clsid2/mpc-hc
-
-installerUrlTemplate:
-  x86: "https://github.com/clsid2/mpc-hc/releases/download/{version}/MPC-HC.{version}.x86.exe"
-  x64: "https://github.com/clsid2/mpc-hc/releases/download/{version}/MPC-HC.{version}.x64.exe"
