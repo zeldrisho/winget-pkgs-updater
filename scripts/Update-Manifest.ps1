@@ -246,6 +246,18 @@ try {
             $installerHash = $archHashes.Values | Select-Object -First 1
         }
 
+        Write-Host "`n📊 Multi-architecture download summary:" -ForegroundColor Cyan
+        Write-Host "  Total hashes collected: $($archHashes.Count)" -ForegroundColor Gray
+        foreach ($arch in $archHashes.Keys) {
+            Write-Host "    $arch : $($archHashes[$arch])" -ForegroundColor Gray
+        }
+
+        if ($archHashes.Count -eq 0) {
+            Write-Error "❌ Failed to download any installers for multi-architecture package!"
+            Write-Host "Expected architectures: $($installerUrls.Keys -join ', ')" -ForegroundColor Yellow
+            exit 1
+        }
+
     } else {
         # Single architecture: Download one installer
         # Detect installer type from URL
@@ -293,7 +305,9 @@ try {
 
             Remove-Item $tempInstaller -Force
         } else {
-            Write-Warning "Could not download installer, hash will not be updated"
+            Write-Error "❌ Failed to download installer for single-architecture package!"
+            Write-Host "URL: $primaryUrl" -ForegroundColor Yellow
+            exit 1
         }
     }
 
@@ -316,6 +330,10 @@ try {
 
         # Add architecture-specific hashes if available
         if ($archHashes.Count -gt 0) {
+            Write-Host "    ℹ️  Applying architecture-specific hashes: $($archHashes.Count) architectures" -ForegroundColor Cyan
+            foreach ($arch in $archHashes.Keys) {
+                Write-Host "      $arch : $($archHashes[$arch])" -ForegroundColor Gray
+            }
             $updateParams['ArchHashes'] = $archHashes
             # Also add arch-specific ProductCodes and SignatureSha256 if available
             if ($archProductCodes.Count -gt 0) {
@@ -327,7 +345,10 @@ try {
         } else {
             # Single architecture - use legacy single hash parameter
             if ($installerHash) {
+                Write-Host "    ℹ️  Applying single-architecture hash: $installerHash" -ForegroundColor Cyan
                 $updateParams['Hash'] = $installerHash
+            } else {
+                Write-Warning "    ⚠️  No installer hash available - manifest will not be updated with new hash!"
             }
             if ($productCode) {
                 $updateParams['ProductCode'] = $productCode
