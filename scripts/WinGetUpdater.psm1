@@ -1112,11 +1112,18 @@ function Update-ManifestYaml {
             
             if ($inInstallers) {
                 # Detect installer entry (starts with '- ')
-                if ($line -match '^(\s*)- ') {
+                # Also check if Architecture is on the same line as the dash
+                if ($line -match '^(\s*)- (?:Architecture:\s+(x64|x86|arm64|arm))') {
+                    # Architecture on same line as dash (e.g., "- Architecture: x64")
+                    $currentIndent = $matches[1].Length
+                    $currentArch = $matches[2]
+                }
+                elseif ($line -match '^(\s*)- ') {
+                    # Just a dash, architecture on next line
                     $currentIndent = $matches[1].Length
                     $currentArch = $null
                 }
-                # Detect Architecture field
+                # Detect Architecture field on separate line
                 elseif ($line -match '^(\s+)Architecture:\s+(x64|x86|arm64|arm)') {
                     $lineIndent = $matches[1].Length
                     if ($lineIndent -gt $currentIndent) {
