@@ -1015,6 +1015,10 @@ function Update-ManifestYaml {
 
         [hashtable]$ArchHashes,
 
+        [hashtable]$ArchProductCodes,
+
+        [hashtable]$ArchSignatures,
+
         [string]$ProductCode,
 
         [string]$SignatureSha256,
@@ -1064,36 +1068,96 @@ function Update-ManifestYaml {
         $content = $lines -join "`n"
     }
 
-    # Replace InstallerUrl if provided
+    # Replace InstallerUrl if provided (single-arch only)
     if ($InstallerUrl) {
         $escapedUrl = $InstallerUrl.Replace('$', '$$')
         $content = $content -replace "InstallerUrl:\s+.*", "InstallerUrl: $escapedUrl"
     }
 
-    # Replace hash if provided
+    # Replace hash if provided (single-arch only)
     if ($Hash) {
         $content = $content -replace "InstallerSha256:\s+[A-Fa-f0-9]{64}", "InstallerSha256: $Hash"
     }
 
-    # Replace ProductCode if provided and exists in manifest
+    # Replace ProductCode if provided and exists in manifest (single-arch only)
     if ($ProductCode -and $content -match 'ProductCode:') {
         $content = $content -replace "ProductCode:\s+\{[A-Fa-f0-9\-]+\}", "ProductCode: $ProductCode"
         Write-Host "  ✓ Updated ProductCode: $ProductCode" -ForegroundColor Green
     }
 
-    # Replace SignatureSha256 if provided and exists in manifest
+    # Replace SignatureSha256 if provided and exists in manifest (single-arch only)
     if ($SignatureSha256 -and $content -match 'SignatureSha256:') {
         $content = $content -replace "SignatureSha256:\s+[A-Fa-f0-9]{64}", "SignatureSha256: $SignatureSha256"
         Write-Host "  ✓ Updated SignatureSha256: $SignatureSha256" -ForegroundColor Green
     }
 
-    # Replace architecture-specific hashes if provided
-    if ($ArchHashes) {
-        foreach ($arch in $ArchHashes.Keys) {
-            # This is a simplified implementation
-            # Full implementation would need to parse YAML structure
-            Write-Verbose "Would update hash for architecture: $arch"
+    # Replace architecture-specific hashes if provided (multi-arch)
+    if ($ArchHashes -and $ArchHashes.Count -gt 0) {
+        Write-Host "  ✓ Updating architecture-specific hashes..." -ForegroundColor Cyan
+        
+        # Parse YAML to identify installer entries with their architectures
+        $lines = $content -split "`r?`n"
+        $inInstallers = $false
+        $currentArch = $null
+        $currentIndent = 0
+        
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+            
+            # Detect start of Installers section
+            if ($line -match '^Installers:\s*$') {
+                $inInstallers = $true
+                continue
+            }
+            
+            if ($inInstallers) {
+                # Detect installer entry (starts with '- ')
+                if ($line -match '^(\s*)- ') {
+                    $currentIndent = $matches[1].Length
+                    $currentArch = $null
+                }
+                # Detect Architecture field
+                elseif ($line -match '^(\s+)Architecture:\s+(x64|x86|arm64|arm)') {
+                    $lineIndent = $matches[1].Length
+                    if ($lineIndent -gt $currentIndent) {
+                        $currentArch = $matches[2]
+                    }
+                }
+                # Update InstallerSha256 if we know the architecture
+                elseif ($currentArch -and $line -match '^(\s+)InstallerSha256:\s+[A-Fa-f0-9]{64}') {
+                    $lineIndent = $matches[1].Length
+                    if ($lineIndent -gt $currentIndent -and $ArchHashes.ContainsKey($currentArch)) {
+                        $newHash = $ArchHashes[$currentArch]
+                        $lines[$i] = $line -replace '[A-Fa-f0-9]{64}', $newHash
+                        Write-Host "    ✓ Updated $currentArch hash: $newHash" -ForegroundColor Green
+                    }
+                }
+                # Update ProductCode if architecture-specific codes provided
+                elseif ($currentArch -and $ArchProductCodes -and $line -match '^(\s+)ProductCode:\s+\{[A-Fa-f0-9\-]+\}') {
+                    $lineIndent = $matches[1].Length
+                    if ($lineIndent -gt $currentIndent -and $ArchProductCodes.ContainsKey($currentArch)) {
+                        $newCode = $ArchProductCodes[$currentArch]
+                        $lines[$i] = $line -replace '\{[A-Fa-f0-9\-]+\}', $newCode
+                        Write-Host "    ✓ Updated $currentArch ProductCode: $newCode" -ForegroundColor Green
+                    }
+                }
+                # Update SignatureSha256 if architecture-specific signatures provided
+                elseif ($currentArch -and $ArchSignatures -and $line -match '^(\s+)SignatureSha256:\s+[A-Fa-f0-9]{64}') {
+                    $lineIndent = $matches[1].Length
+                    if ($lineIndent -gt $currentIndent -and $ArchSignatures.ContainsKey($currentArch)) {
+                        $newSig = $ArchSignatures[$currentArch]
+                        $lines[$i] = $line -replace '[A-Fa-f0-9]{64}', $newSig
+                        Write-Host "    ✓ Updated $currentArch SignatureSha256: $newSig" -ForegroundColor Green
+                    }
+                }
+                # Stop processing if we exit Installers section
+                elseif ($line -match '^\S') {
+                    $inInstallers = $false
+                }
+            }
         }
+        
+        $content = $lines -join "`n"
     }
 
     # Update ReleaseDate to current date if field exists

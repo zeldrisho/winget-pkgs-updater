@@ -176,60 +176,125 @@ try {
     Write-Host "`nCreating new version directory..." -ForegroundColor Cyan
     New-Item -ItemType Directory -Path $newVersionDir -Force | Out-Null
 
-    # Download installer and calculate hash
-    Write-Host "`nDownloading installer to calculate hash..." -ForegroundColor Cyan
+    # Download installer(s) and calculate hash(es)
+    Write-Host "`nDownloading installer(s) to calculate hash..." -ForegroundColor Cyan
 
-    # Detect installer type from URL
-    $installerExtension = [System.IO.Path]::GetExtension($primaryUrl).ToLower()
-    if ($installerExtension -eq '') {
-        # Try to detect from URL pattern
-        if ($primaryUrl -match '\.msi($|\?)') { $installerExtension = '.msi' }
-        elseif ($primaryUrl -match '\.msix($|\?)') { $installerExtension = '.msix' }
-        elseif ($primaryUrl -match '\.appx($|\?)') { $installerExtension = '.appx' }
-        else { $installerExtension = '.exe' }
-    }
-
-    $tempInstaller = Join-Path $env:TEMP "installer-$(Get-Random)$installerExtension"
     $installerHash = $null
+    $archHashes = @{}
+    $archProductCodes = @{}
+    $archSignatures = @{}
     $productCode = $null
     $signatureSha256 = $null
     $finalInstallerUrl = $primaryUrl
 
-    $downloadResult = Get-WebFile -Url $primaryUrl -OutFile $tempInstaller
+    if ($installerUrls) {
+        # Multi-architecture: Download each installer and calculate separate hashes
+        Write-Host "Multi-architecture package - downloading all installers..." -ForegroundColor Cyan
+        
+        foreach ($arch in $installerUrls.Keys) {
+            $url = $installerUrls[$arch]
+            Write-Host "`n  Processing $arch architecture..." -ForegroundColor Cyan
+            Write-Host "    URL: $url" -ForegroundColor Gray
+            
+            # Detect installer type from URL
+            $installerExtension = [System.IO.Path]::GetExtension($url).ToLower()
+            if ($installerExtension -eq '') {
+                # Try to detect from URL pattern
+                if ($url -match '\.msi($|\?)') { $installerExtension = '.msi' }
+                elseif ($url -match '\.msix($|\?)') { $installerExtension = '.msix' }
+                elseif ($url -match '\.appx($|\?)') { $installerExtension = '.appx' }
+                else { $installerExtension = '.exe' }
+            }
 
-    if ($downloadResult.Success) {
-        # Store the final URL after redirects
-        $finalInstallerUrl = $downloadResult.FinalUrl
+            $tempInstaller = Join-Path $env:TEMP "installer-$arch-$(Get-Random)$installerExtension"
+            $downloadResult = Get-WebFile -Url $url -OutFile $tempInstaller
 
-        # Warn if URL was redirected (vanity URL detected)
-        if ($downloadResult.WasRedirected) {
-            Write-Host "`n⚠️  Warning: Vanity URL detected!" -ForegroundColor Yellow
-            Write-Host "   The installer URL redirects to a different location." -ForegroundColor Yellow
-            Write-Host "   This may cause SHA256 hash mismatch issues in WinGet." -ForegroundColor Yellow
-            Write-Host "   Original URL: $primaryUrl" -ForegroundColor Gray
-            Write-Host "   Final URL:    $finalInstallerUrl" -ForegroundColor Gray
-            Write-Host "   Consider updating the checkver config to use the final URL directly.`n" -ForegroundColor Yellow
+            if ($downloadResult.Success) {
+                # Calculate hash for this architecture
+                $hash = Get-FileSha256 -FilePath $tempInstaller
+                $archHashes[$arch] = $hash
+                Write-Host "    ✅ SHA256: $hash" -ForegroundColor Green
+
+                # Extract ProductCode for MSI installers
+                if ($installerExtension -eq '.msi') {
+                    $archProductCode = Get-MsiProductCode -FilePath $tempInstaller
+                    if ($archProductCode) {
+                        $archProductCodes[$arch] = $archProductCode
+                        Write-Host "    ✅ ProductCode: $archProductCode" -ForegroundColor Green
+                    }
+                }
+
+                # Extract SignatureSha256 for MSIX/APPX packages
+                if ($installerExtension -in @('.msix', '.appx')) {
+                    $archSig = Get-MsixSignatureSha256 -FilePath $tempInstaller
+                    if ($archSig) {
+                        $archSignatures[$arch] = $archSig
+                        Write-Host "    ✅ SignatureSha256: $archSig" -ForegroundColor Green
+                    }
+                }
+
+                Remove-Item $tempInstaller -Force
+            } else {
+                Write-Warning "    ❌ Could not download installer for $arch"
+            }
         }
 
-        # Calculate installer hash
-        $installerHash = Get-FileSha256 -FilePath $tempInstaller
-        Write-Host "✅ Calculated SHA256: $installerHash" -ForegroundColor Green
-
-        # Extract ProductCode for MSI installers
-        if ($installerExtension -eq '.msi') {
-            Write-Host "`nExtracting ProductCode from MSI..." -ForegroundColor Cyan
-            $productCode = Get-MsiProductCode -FilePath $tempInstaller
+        # Use x64 hash as primary hash for single-hash manifests (backward compatibility)
+        if ($archHashes.ContainsKey('x64')) {
+            $installerHash = $archHashes['x64']
+        } elseif ($archHashes.Count -gt 0) {
+            $installerHash = $archHashes.Values | Select-Object -First 1
         }
 
-        # Extract SignatureSha256 for MSIX/APPX packages
-        if ($installerExtension -in @('.msix', '.appx')) {
-            Write-Host "`nCalculating SignatureSha256 for MSIX..." -ForegroundColor Cyan
-            $signatureSha256 = Get-MsixSignatureSha256 -FilePath $tempInstaller
-        }
-
-        Remove-Item $tempInstaller -Force
     } else {
-        Write-Warning "Could not download installer, hash will not be updated"
+        # Single architecture: Download one installer
+        # Detect installer type from URL
+        $installerExtension = [System.IO.Path]::GetExtension($primaryUrl).ToLower()
+        if ($installerExtension -eq '') {
+            # Try to detect from URL pattern
+            if ($primaryUrl -match '\.msi($|\?)') { $installerExtension = '.msi' }
+            elseif ($primaryUrl -match '\.msix($|\?)') { $installerExtension = '.msix' }
+            elseif ($primaryUrl -match '\.appx($|\?)') { $installerExtension = '.appx' }
+            else { $installerExtension = '.exe' }
+        }
+
+        $tempInstaller = Join-Path $env:TEMP "installer-$(Get-Random)$installerExtension"
+        $downloadResult = Get-WebFile -Url $primaryUrl -OutFile $tempInstaller
+
+        if ($downloadResult.Success) {
+            # Store the final URL after redirects
+            $finalInstallerUrl = $downloadResult.FinalUrl
+
+            # Warn if URL was redirected (vanity URL detected)
+            if ($downloadResult.WasRedirected) {
+                Write-Host "`n⚠️  Warning: Vanity URL detected!" -ForegroundColor Yellow
+                Write-Host "   The installer URL redirects to a different location." -ForegroundColor Yellow
+                Write-Host "   This may cause SHA256 hash mismatch issues in WinGet." -ForegroundColor Yellow
+                Write-Host "   Original URL: $primaryUrl" -ForegroundColor Gray
+                Write-Host "   Final URL:    $finalInstallerUrl" -ForegroundColor Gray
+                Write-Host "   Consider updating the checkver config to use the final URL directly.`n" -ForegroundColor Yellow
+            }
+
+            # Calculate installer hash
+            $installerHash = Get-FileSha256 -FilePath $tempInstaller
+            Write-Host "✅ Calculated SHA256: $installerHash" -ForegroundColor Green
+
+            # Extract ProductCode for MSI installers
+            if ($installerExtension -eq '.msi') {
+                Write-Host "`nExtracting ProductCode from MSI..." -ForegroundColor Cyan
+                $productCode = Get-MsiProductCode -FilePath $tempInstaller
+            }
+
+            # Extract SignatureSha256 for MSIX/APPX packages
+            if ($installerExtension -in @('.msix', '.appx')) {
+                Write-Host "`nCalculating SignatureSha256 for MSIX..." -ForegroundColor Cyan
+                $signatureSha256 = Get-MsixSignatureSha256 -FilePath $tempInstaller
+            }
+
+            Remove-Item $tempInstaller -Force
+        } else {
+            Write-Warning "Could not download installer, hash will not be updated"
+        }
     }
 
     # Copy and update manifest files
@@ -247,9 +312,29 @@ try {
             FilePath = $destFile
             OldVersion = $latestVersion
             NewVersion = $Version
-            Hash = $installerHash
-            ProductCode = $productCode
-            SignatureSha256 = $signatureSha256
+        }
+
+        # Add architecture-specific hashes if available
+        if ($archHashes.Count -gt 0) {
+            $updateParams['ArchHashes'] = $archHashes
+            # Also add arch-specific ProductCodes and SignatureSha256 if available
+            if ($archProductCodes.Count -gt 0) {
+                $updateParams['ArchProductCodes'] = $archProductCodes
+            }
+            if ($archSignatures.Count -gt 0) {
+                $updateParams['ArchSignatures'] = $archSignatures
+            }
+        } else {
+            # Single architecture - use legacy single hash parameter
+            if ($installerHash) {
+                $updateParams['Hash'] = $installerHash
+            }
+            if ($productCode) {
+                $updateParams['ProductCode'] = $productCode
+            }
+            if ($signatureSha256) {
+                $updateParams['SignatureSha256'] = $signatureSha256
+            }
         }
 
         if (-not $installerUrls) {
