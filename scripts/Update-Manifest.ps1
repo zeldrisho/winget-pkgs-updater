@@ -43,6 +43,9 @@ $VerbosePreference = 'Continue'
 # Import module
 Import-Module "$PSScriptRoot/WinGetUpdater.psm1" -Force
 
+# Get cross-platform temp directory
+$TempDir = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { '/tmp' }
+
 Write-Host "`n======================================" -ForegroundColor Cyan
 Write-Host "WinGet Manifest Updater - PowerShell" -ForegroundColor Cyan
 Write-Host "======================================`n" -ForegroundColor Cyan
@@ -164,7 +167,7 @@ try {
     Write-Host "`nBranch name: $branchName" -ForegroundColor Cyan
 
     # Fetch template manifest from upstream
-    $templateDir = Join-Path $env:TEMP "manifest-template-$(Get-Random)"
+    $templateDir = Join-Path $TempDir "manifest-template-$(Get-Random)"
     Write-Host "`nFetching template manifest from upstream..." -ForegroundColor Cyan
 
     if (-not (Get-UpstreamManifest -ManifestPath $manifestPath -Version $latestVersion -OutputPath $templateDir)) {
@@ -172,7 +175,7 @@ try {
     }
 
     # Create new version directory for manifests
-    $newVersionDir = Join-Path $env:TEMP "manifest-new-$(Get-Random)"
+    $newVersionDir = Join-Path $TempDir "manifest-new-$(Get-Random)"
     Write-Host "`nCreating new version directory..." -ForegroundColor Cyan
     New-Item -ItemType Directory -Path $newVersionDir -Force | Out-Null
 
@@ -206,7 +209,7 @@ try {
                 else { $installerExtension = '.exe' }
             }
 
-            $tempInstaller = Join-Path $env:TEMP "installer-$arch-$(Get-Random)$installerExtension"
+            $tempInstaller = Join-Path $TempDir "installer-$arch-$(Get-Random)$installerExtension"
             $downloadResult = Get-WebFile -Url $url -OutFile $tempInstaller
 
             if ($downloadResult.Success) {
@@ -270,7 +273,7 @@ try {
             else { $installerExtension = '.exe' }
         }
 
-        $tempInstaller = Join-Path $env:TEMP "installer-$(Get-Random)$installerExtension"
+        $tempInstaller = Join-Path $TempDir "installer-$(Get-Random)$installerExtension"
         $downloadResult = Get-WebFile -Url $primaryUrl -OutFile $tempInstaller
 
         if ($downloadResult.Success) {

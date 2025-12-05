@@ -1810,8 +1810,9 @@ function Publish-ManifestViaGit {
         Write-Host "Setting up Git authentication..." -ForegroundColor Cyan
         gh auth setup-git 2>&1 | Out-Null
 
-        # Create temp directory for clone
-        $tempDir = Join-Path $env:TEMP "winget-pkgs-git-$(Get-Random)"
+        # Create temp directory for clone (cross-platform compatible)
+        $systemTempDir = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { '/tmp' }
+        $tempDir = Join-Path $systemTempDir "winget-pkgs-git-$(Get-Random)"
         Write-Host "Cloning fork to $tempDir..." -ForegroundColor Cyan
         
         # Use sparse checkout for performance
