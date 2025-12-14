@@ -872,7 +872,7 @@ function Get-MsiProductCode {
         $record = $view.GetType().InvokeMember('Fetch', 'InvokeMethod', $null, $view, $null)
 
         if ($record) {
-            $productCode = $record.GetType().InvokeMember('StringData', 'GetProperty', $null, $record, 1)
+            $productCode = [string]$record.GetType().InvokeMember('StringData', 'GetProperty', $null, $record, 1)
             Write-Host "  ✓ Extracted ProductCode: $productCode" -ForegroundColor Green
 
             # Cleanup COM objects
@@ -882,7 +882,7 @@ function Get-MsiProductCode {
             [System.Runtime.Interopservices.Marshal]::ReleaseComObject($installer) | Out-Null
             [System.GC]::Collect()
 
-            return $productCode
+            return [string]$productCode
         }
 
         # Cleanup if no record found

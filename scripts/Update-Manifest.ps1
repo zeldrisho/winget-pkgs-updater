@@ -222,7 +222,7 @@ try {
                 if ($installerExtension -eq '.msi') {
                     $archProductCode = Get-MsiProductCode -FilePath $tempInstaller
                     if ($archProductCode) {
-                        $archProductCodes[$arch] = $archProductCode
+                        $archProductCodes[$arch] = [string]$archProductCode
                         Write-Host "    ✅ ProductCode: $archProductCode" -ForegroundColor Green
                     }
                 }
@@ -354,7 +354,7 @@ try {
                 Write-Warning "    ⚠️  No installer hash available - manifest will not be updated with new hash!"
             }
             if ($productCode) {
-                $updateParams['ProductCode'] = $productCode
+                $updateParams['ProductCode'] = [string]$productCode
             }
             if ($signatureSha256) {
                 $updateParams['SignatureSha256'] = $signatureSha256
